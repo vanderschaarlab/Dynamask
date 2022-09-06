@@ -27,16 +27,22 @@ def run_experiment(cv: int = 0):
     with open("./data/state/state_dataset_states_test.pkl", "rb") as file:
         true_states = pkl.load(file)
         true_states += 1  #
-        true_saliency = np.zeros((N_ex, T, N_features))  # Entries set to one for salient indices and zero else
+        true_saliency = np.zeros(
+            (N_ex, T, N_features)
+        )  # Entries set to one for salient indices and zero else
         for exp_id, time_slice in enumerate(true_states):
             for t_id, feature_id in enumerate(time_slice):
                 true_saliency[exp_id, t_id, feature_id] = 1
         true_saliency = true_saliency.astype(int)
-    with open(f"./experiments/results/state/true_test_importance_{cv}.pkl", "wb") as file:
+    with open(
+        f"./experiments/results/state/true_test_importance_{cv}.pkl", "wb"
+    ) as file:
         pkl.dump(true_saliency, file)
 
     # Load the model:
-    model = StateClassifier(feature_size=3, n_state=2, hidden_size=200, rnn="GRU", return_all=True)
+    model = StateClassifier(
+        feature_size=3, n_state=2, hidden_size=200, rnn="GRU", return_all=True
+    )
     model.load_state_dict(torch.load(f"./experiments/results/state/model_{cv}.pt"))
 
     # This parts allow to use backprop on a RNN in evaluation mode (otherwise Pytorch crashes):
@@ -60,7 +66,9 @@ def run_experiment(cv: int = 0):
 
     # Prepare the useful variables:
     pert = GaussianBlur(device, sigma_max=1.0)  # This is the perturbation operator
-    area_list = np.arange(0.25, 0.35, 0.01)  # This is the list of masks area to consider
+    area_list = np.arange(
+        0.25, 0.35, 0.01
+    )  # This is the list of masks area to consider
     mask_saliency = torch.zeros(
         size=(N_ex, T, N_features), dtype=torch.float32, device=device
     )  # This is Dynamask's approximation for true_saliency
@@ -84,13 +92,16 @@ def run_experiment(cv: int = 0):
         )
 
         # Extract the extremal mask:
-        thresh = log_loss(f(x_test), f(x_test))  # This is what we call epsilon in the paper
+        thresh = log_loss(
+            f(x_test), f(x_test)
+        )  # This is what we call epsilon in the paper
         mask = mask_group.get_extremal_mask(threshold=thresh)
         mask_saliency[k, :, :] = mask.mask_tensor
 
         # Compute the metrics:
         prec, rec, thres = metrics.precision_recall_curve(
-            true_saliency[k, :, :].flatten().astype(int), mask.mask_tensor.clone().detach().cpu().numpy().flatten()
+            true_saliency[k, :, :].flatten().astype(int),
+            mask.mask_tensor.clone().detach().cpu().numpy().flatten(),
         )
         print(
             f"For this iteration: AUP={metrics.auc(thres, prec[:-1]):.3g} ; AUR={metrics.auc(thres, rec[:-1]):.3g} ; "
@@ -108,7 +119,9 @@ def run_experiment(cv: int = 0):
 
     mask_label = mask_saliency.clone().detach().cpu().numpy().flatten()
     true_label = true_saliency.flatten().astype(int)
-    mask_prec, mask_rec, mask_thres = metrics.precision_recall_curve(true_label, mask_label)
+    mask_prec, mask_rec, mask_thres = metrics.precision_recall_curve(
+        true_label, mask_label
+    )
 
     print(f"Mask AUROC: {metrics.roc_auc_score(true_label, mask_label)}")
     print(f"Mask AUPRC: {metrics.auc(mask_rec, mask_prec)}")
@@ -118,6 +131,8 @@ def run_experiment(cv: int = 0):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--cv", type=int, help="cross validation number of the experiment", default=0)
+    parser.add_argument(
+        "--cv", type=int, help="cross validation number of the experiment", default=0
+    )
     args = parser.parse_args()
     run_experiment(args.cv)

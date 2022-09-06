@@ -3,7 +3,6 @@ import os
 import pickle as pkl
 
 import torch
-
 from attribution.mask import Mask
 from attribution.perturbation import FadeMovingAverage
 from fit.TSX.utils import load_data
@@ -14,7 +13,9 @@ from utils.losses import log_loss_target
 def run_experiment(cv: int = 0, area: float = 0.1):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     data_path = "./data/mimic"
-    p_data, train_loader, valid_loader, test_loader = load_data(batch_size=100, path=data_path, task="mortality", cv=cv)
+    p_data, train_loader, valid_loader, test_loader = load_data(
+        batch_size=100, path=data_path, task="mortality", cv=cv
+    )
     # Load the input time series:
     for X, Y in test_loader:
         X_test = X.to(device).type(torch.float32).transpose(1, 2)
@@ -31,7 +32,12 @@ def run_experiment(cv: int = 0, area: float = 0.1):
 
     # Load the model:
     model = StateClassifier(
-        feature_size=N_features, n_state=2, hidden_size=200, rnn="GRU", return_all=True, device=device
+        feature_size=N_features,
+        n_state=2,
+        hidden_size=200,
+        rnn="GRU",
+        return_all=True,
+        device=device,
     )
     model.load_state_dict(torch.load(f"experiments/results/mimic/model_{cv}.pt"))
 
@@ -62,12 +68,16 @@ def run_experiment(cv: int = 0, area: float = 0.1):
 
     # Prepare the useful variables:
     pert = FadeMovingAverage(device)  # This is the perturbation operator
-    mask_saliency = torch.zeros(size=X_test.shape, dtype=torch.float32, device=device)  # This is the mask saliency map
+    mask_saliency = torch.zeros(
+        size=X_test.shape, dtype=torch.float32, device=device
+    )  # This is the mask saliency map
 
     for k, x_test in enumerate(torch.unbind(X_test)):
         print(f"Now working with sample {k + 1}/{N_ex}.")
         # Fit the mask:
-        mask = Mask(pert, device, task="classification", verbose=False, deletion_mode=True)
+        mask = Mask(
+            pert, device, task="classification", verbose=False, deletion_mode=True
+        )
         mask.fit(
             X=x_test,
             f=f,
@@ -94,7 +104,9 @@ def run_experiment(cv: int = 0, area: float = 0.1):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--cv", type=int, help="cross validation number of the experiment", default=0)
+    parser.add_argument(
+        "--cv", type=int, help="cross validation number of the experiment", default=0
+    )
     parser.add_argument("--area", type=float, help="mask area", default=0.1)
     args = parser.parse_args()
     run_experiment(args.cv, args.area)

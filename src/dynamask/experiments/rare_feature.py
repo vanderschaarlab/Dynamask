@@ -20,7 +20,7 @@ def run_experiment(
     T: int = 50,
     N_features: int = 50,
     N_select: int = 5,
-    save_dir: str = "experiments/results/rare_time/",
+    save_dir: str = "experiments/results/rare_feature/",
 ):
     """Run experiment.
 
@@ -29,10 +29,10 @@ def run_experiment(
         N_ex: Number of time series to generate.
         T: Length of each time series.
         N_features: Number of features in each time series.
-        N_select: Number of time steps that are truly salient.
+        N_select: Number of features that are truly salient.
         save_dir: Directory where the results should be saved.
 
-    Return:
+    Returns:
         None
     """
     # Create the saving directory if it does not exist
@@ -49,11 +49,15 @@ def run_experiment(
     # Generate the input data
     ar = np.array([2, 0.5, 0.2, 0.1])  # AR coefficients
     ma = np.array([2])  # MA coefficients
-    data_arima = ArmaProcess(ar=ar, ma=ma).generate_sample(nsample=(N_ex, T, N_features), axis=1)
+    data_arima = ArmaProcess(ar=ar, ma=ma).generate_sample(
+        nsample=(N_ex, T, N_features), axis=1
+    )
     X = torch.tensor(data_arima, device=device, dtype=torch.float32)
 
     # Initialize the saliency tensors
-    true_saliency = torch.zeros(size=(N_ex, T, N_features), device=device, dtype=torch.int64)
+    true_saliency = torch.zeros(
+        size=(N_ex, T, N_features), device=device, dtype=torch.int64
+    )
     dynamask_saliency = torch.zeros(size=true_saliency.shape, device=device)
     fo_saliency = torch.zeros(size=true_saliency.shape, device=device)
     fp_saliency = torch.zeros(size=true_saliency.shape, device=device)
@@ -62,22 +66,24 @@ def run_experiment(
 
     for k in range(N_ex):  # We compute the attribution for each individual time series
         print(f"Now working on example {k + 1}/{N_ex}.")
-        # The truly salient times are selected randomly
-        t_rand = np.random.randint(low=0, high=T - N_select)
-        true_saliency[k, t_rand : t_rand + N_select, int(N_features / 4) : int(3 * N_features / 4)] = 1
+        # The truly salient features are selected randomly via a random permutation
+        perm = torch.randperm(N_features, device=device)
+        true_saliency[k, int(T / 4) : int(3 * T / 4), perm[:N_select]] = 1
         x = X[k, :, :]
 
         # The white box only depends on the truly salient features
         def f(input):
             output = torch.zeros(input.shape, device=input.device)
-            output[t_rand : t_rand + N_select, int(N_features / 4) : int(3 * N_features / 4)] = input[
-                t_rand : t_rand + N_select, int(N_features / 4) : int(3 * N_features / 4)
+            output[int(T / 4) : int(3 * T / 4), perm[:N_select]] = input[
+                int(T / 4) : int(3 * T / 4), perm[:N_select]
             ]
-            output = (output ** 2).sum(dim=-1)
+            output = (output**2).sum(dim=-1)
             return output
 
         # Dynamask attribution
-        mask_group = MaskGroup(perturbation=pert, device=device, random_seed=random_seed, verbose=False)
+        mask_group = MaskGroup(
+            perturbation=pert, device=device, random_seed=random_seed, verbose=False
+        )
         mask_group.fit(
             f=f,
             X=x,
@@ -86,9 +92,9 @@ def run_experiment(
             n_epoch=1000,
             size_reg_factor_dilation=1000,
             size_reg_factor_init=1,
-            learning_rate=1,
+            learning_rate=1.0,
         )
-        mask = mask_group.get_best_mask()
+        mask = mask_group.get_best_mask()  # The mask with the lowest error is selected
         dynamask_attr = mask.mask_tensor.clone().detach()
         dynamask_saliency[k, :, :] = dynamask_attr
 

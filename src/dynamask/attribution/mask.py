@@ -6,9 +6,10 @@ import pandas as pd
 import seaborn as sns
 import torch
 import torch.optim as optim
-from attribution.perturbation import Perturbation
 from torch.nn import Softmax
-from utils.metrics import get_entropy, get_information
+
+from dynamask.attribution.perturbation import Perturbation
+from dynamask.utils.metrics import get_entropy, get_information
 
 
 class Mask:

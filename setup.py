@@ -1,16 +1,28 @@
-"""
-    Setup file for dynamask.
-    Use setup.cfg to configure your project.
-
-    This file was generated with PyScaffold 4.1.1.
-    PyScaffold helps you to put up the scaffold of your new Python project.
-    Learn more under: https://pyscaffold.org/
-"""
 from setuptools import setup
+import os
+import re
+
+def read(fname: str) -> str:
+    return open(os.path.join(os.path.dirname(__file__), fname)).read()
+
+def find_version() -> str:
+    version_file = read("src/dynamask/version.py")
+    version_re = r"__version__ = \"(?P<version>.+)\""
+    version_raw = re.match(version_re, version_file)
+
+    if version_raw is None:
+        return "0.0.1"
+
+    version = version_raw.group("version")
+    return version
+
+
 
 if __name__ == "__main__":
     try:
-        setup(use_scm_version={"version_scheme": "no-guess-dev"})
+        setup(
+            version=find_version(),
+        )
     except:  # noqa
         print(
             "\n\nAn error occurred while building the project, "
