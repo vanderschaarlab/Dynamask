@@ -1,6 +1,11 @@
 # Dynamask - Explaining Time Series Predictions with Dynamic Masks
+[![Tests](https://github.com/vanderschaarlab/Dynamask/actions/workflows/test.yml/badge.svg)](https://github.com/vanderschaarlab/Dynamask/actions/workflows/test.yml)
+[![Downloads](https://img.shields.io/pypi/dd/dynamask)](https://pypi.org/project/dynamask/)
+[![pdf](https://img.shields.io/badge/paper-ICML%202021-orange)](https://arxiv.org/abs/2106.05303)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-![image](images/Dynamask.png "Blueprint of Dynamask")
+
+![image](https://github.com/vanderschaarlab/Dynamask/raw/main/images/Dynamask.png "Blueprint of Dynamask")
 
 Code Author: Jonathan Crabbé ([jc2133@cam.ac.uk](mailto:jc2133@cam.ac.uk))
 
@@ -10,23 +15,23 @@ For more details on the theoretical side, please read our [ICML 2021 paper](http
 Predictions with Dynamic Masks'.
 
 Part of the experiments in our paper are relying on [FIT](https://github.com/sanatonek/time_series_explainability),
-another repository associated to the [NeurIPS 2021 paper](https://papers.nips.cc/paper/2020/hash/08fa43588c2571ade19bc0fa5936e028-Abstract.html): 
+another repository associated to the [NeurIPS 2021 paper](https://papers.nips.cc/paper/2020/hash/08fa43588c2571ade19bc0fa5936e028-Abstract.html):
 'What went wrong and when? Instance-wise feature importance for time-series black-box models'. We have included all
 the relevant files in the folder [fit](fit).
 
-## Installation
 
+## :rocket: Installation
 
-To install the relevant packages from shell:
-1. Clone the repository
-2. Create a new virtual environment with Python 3.8
-3. Run the following command from the repository folder:
-    ```shell
-    pip install -r requirements.txt #install requirements
-    ```
-    * If at this point you experience problems installing `psycopg2`, try `psycopg2-binary` (see comment in `requirements.txt`). Note also the dependencies for `psycopg2` installation here: https://www.psycopg.org/install/.
+The library requires libpq-dev.
 
-When the packages are installed, Dynamask can directly be used.
+The library can be installed from PyPI using
+```bash
+$ pip install dynamask
+```
+or from source, using
+```bash
+$ pip install .
+```
 
 ## Toy example
 
@@ -36,9 +41,9 @@ are highlighted by the mask). All the relevant code can be found in the file [ma
 
 ```python
 import torch
-from attribution.mask import Mask
-from attribution.perturbation import GaussianBlur
-from utils.losses import mse
+from dynamask.attribution.mask import Mask
+from dynamask.attribution.perturbation import GaussianBlur
+from dynamask.utils.losses import mse
 
 torch.manual_seed(42)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -64,9 +69,9 @@ with different areas. Then, the extremal mask can be extracted from the group.
 The relevant code can be found in the file [mask_group](attribution/mask_group.py).
 ```python
 import torch
-from attribution.mask_group import MaskGroup
-from attribution.perturbation import GaussianBlur
-from utils.losses import mse
+from dynamask.attribution.mask_group import MaskGroup
+from dynamask.attribution.perturbation import GaussianBlur
+from dynamask.utils.losses import mse
 
 torch.manual_seed(42)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -105,8 +110,8 @@ Scripts to run the experiments are also provided: `experiments/run_<EXPERIMENT>.
 
 1. Run the following command from the repository folder:
    ```shell
-   python -m experiments.rare_feature # Runs the Rare Feature experiment
-   python -m experiments.rare_time # Runs the Rare Time experiment
+   python -m dynamask.experiments.rare_feature # Runs the Rare Feature experiment
+   python -m dynamask.experiments.rare_time # Runs the Rare Time experiment
    ```
    To do the experiment with various seeds, please add the following specification to these commands:
    ```shell
@@ -116,8 +121,8 @@ Scripts to run the experiments are also provided: `experiments/run_<EXPERIMENT>.
 2. The results of these experiments are saved in the two following folders: [Rare Feature](experiments/results/rare_feature)
 and [Rare Time](experiments/results/rare_time). To process the results and compute the associated metrics run:
    ```shell
-   python -m experiments.results.rare_feature.get_results
-   python -m experiments.results.rare_time.get_results
+   python -m dynamask.experiments.results.rare_feature.get_results
+   python -m dynamask.experiments.results.rare_time.get_results
    ```
    The following options need to be specified:
    ```shell
@@ -131,11 +136,11 @@ and [Rare Time](experiments/results/rare_time). To process the results and compu
 
 1. Run this command to generate the synthetic data and store it in ``data/state``:
    ```shell
-   python -m fit.data_generator.state_data --signal_len 200 --signal_num 1000
+   python -m dynamask.fit.data_generator.state_data --signal_len 200 --signal_num 1000
    ```
 2. Run the following command to fit a model together with a baseline saliency method:
    ```shell
-   python -m fit.evaluation.baselines --explainer fit --train   
+   python -m dynamask.fit.evaluation.baselines --explainer fit --train
    ```
    To do the experiment with various baselines, please change the explainer:
    ```shell
@@ -147,7 +152,7 @@ and [Rare Time](experiments/results/rare_time). To process the results and compu
 3. The models and baselines saliency maps are all saved in [this folder](experiments/results/state).
    Now fit a mask for each of these time series by running:
    ```shell
-   python -m experiments.state
+   python -m dynamask.experiments.state
    ```
    Please use the same ``--cv`` option as for the previous command.
 
@@ -155,7 +160,7 @@ and [Rare Time](experiments/results/rare_time). To process the results and compu
 4. The masks are all saved in [this folder](experiments/results/state).
    To process the results and compute the associated metrics run:
    ```shell
-   python -m experiments.results.state.get_results
+   python -m dynamask.experiments.results.state.get_results
    ```
    The following options need to be specified:
    ```shell
@@ -171,21 +176,21 @@ and [Rare Time](experiments/results/rare_time). To process the results and compu
 
 2. Run this command to acquire the data and store it:
    ```shell
-   python fit/data_generator/icu_mortality.py --sqluser YOUR_USER --sqlpass YOUR_PASSWORD
+   python dynamask/fit/data_generator/icu_mortality.py --sqluser YOUR_USER --sqlpass YOUR_PASSWORD
    ```
-   If everything happens properly, two files named ``adult_icu_vital.gz`` and ``adult_icu_lab.gz`` 
+   If everything happens properly, two files named ``adult_icu_vital.gz`` and ``adult_icu_lab.gz``
    are stored in ``data/mimic``.
-   
 
-3. Run this command to preprocess the data: 
+
+3. Run this command to preprocess the data:
    ```shell
-   python fit/data_generator/data_preprocess.py
+   python dynamask/fit/data_generator/data_preprocess.py
    ```
-   If everything happens properly, a file ``patient_vital_preprocessed.pkl`` is stored in ``data/mimic``. 
+   If everything happens properly, a file ``patient_vital_preprocessed.pkl`` is stored in ``data/mimic``.
 
 4. Run the following command to fit a model together with a baseline saliency method:
    ```shell
-   python -m fit.evaluation.baselines --data mimic --explainer fit --train   
+   python -m dynamask.fit.evaluation.baselines --data mimic --explainer fit --train
    ```
    To do the experiment with various baselines, please change the explainer:
    ```shell
@@ -198,7 +203,7 @@ and [Rare Time](experiments/results/rare_time). To process the results and compu
 5. The models and baselines saliency maps are all saved in [this folder](experiments/results/state).
    Now fit a mask for each of these time series by running:
    ```shell
-   python -m experiments.mimic
+   python -m dynamask.experiments.mimic
    ```
    Please use the same ``--cv`` option as for the previous command.
    ```shell
@@ -210,7 +215,7 @@ and [Rare Time](experiments/results/rare_time). To process the results and compu
 6. The masks are all saved in [this folder](experiments/results/mimic).
    To process the results and compute the associated metrics run:
    ```shell
-   python -m experiments.results.state.plot_benchmarks
+   python -m dynamask.experiments.results.state.plot_benchmarks
    ```
    The following options need to be specified:
    ```shell
@@ -220,6 +225,19 @@ and [Rare Time](experiments/results/rare_time). To process the results and compu
    --areas # The mask areas that you have computed (separated by a space)
    ```
    The resulting plots are saved in [this folder](experiments/results/mimic).
+
+
+## :hammer: Tests
+
+Install the testing dependencies using
+```bash
+pip install .[testing]
+```
+The tests can be executed using
+```bash
+pytest -vsx
+```
+
 
 ## Citing
 
