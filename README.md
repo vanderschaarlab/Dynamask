@@ -1,4 +1,9 @@
 # Dynamask - Explaining Time Series Predictions with Dynamic Masks
+[![Tests](https://github.com/vanderschaarlab/Dynamask/actions/workflows/test.yml/badge.svg)](https://github.com/vanderschaarlab/Dynamask/actions/workflows/test.yml)
+[![Downloads](https://img.shields.io/pypi/dd/dynamask)](https://pypi.org/project/dynamask/)
+[![pdf](https://img.shields.io/badge/paper-ICML%202021-orange)](https://arxiv.org/abs/2106.05303)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+
 
 ![image](https://github.com/vanderschaarlab/Dynamask/raw/main/images/Dynamask.png "Blueprint of Dynamask")
 
