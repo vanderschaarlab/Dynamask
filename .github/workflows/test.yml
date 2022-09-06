@@ -51,7 +51,7 @@ jobs:
       - name: Install Ubuntu dependencies
         run: |
             apt install libpq-dev
-        if: ${{ matrix.os == 'macos-latest' }}
+        if: ${{ matrix.os == 'ubuntu-latest' }}
       - name: Install dependencies
         run: |
             pip install .[testing]
