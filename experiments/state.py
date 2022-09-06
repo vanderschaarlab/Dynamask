@@ -6,10 +6,10 @@ import torch
 from sklearn import metrics
 from torch.nn import Softmax
 
-from attribution.mask_group import MaskGroup
-from attribution.perturbation import GaussianBlur
-from models.models import StateClassifier
-from utils.losses import log_loss
+from dynamask.attribution.mask_group import MaskGroup
+from dynamask.attribution.perturbation import GaussianBlur
+from dynamask.models.models import StateClassifier
+from dynamask.utils.losses import log_loss
 
 
 def run_experiment(cv: int = 0):

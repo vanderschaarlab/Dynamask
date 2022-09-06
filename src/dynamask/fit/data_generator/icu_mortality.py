@@ -10,7 +10,7 @@ import psycopg2
 
 
 def replace(group):
-    """ Replace missing values in measurements using mean imputation
+    """Replace missing values in measurements using mean imputation
     takes in a pandas group, and replaces the null value with the mean of the none null
     values of the same group
     """
@@ -29,7 +29,9 @@ def main(sqluser, sqlpass):
     # create a database connection and connect to local postgres version of mimic
     dbname = "mimic"
     schema_name = "mimiciii"
-    con = psycopg2.connect(dbname=dbname, user=sqluser, host="127.0.0.1", password=sqlpass)
+    con = psycopg2.connect(
+        dbname=dbname, user=sqluser, host="127.0.0.1", password=sqlpass
+    )
     cur = con.cursor()
     cur.execute("SET search_path to " + schema_name)
 
@@ -86,20 +88,24 @@ def main(sqluser, sqlpass):
 
     den = pd.read_sql_query(denquery, con)
 
-    ## drop patients with less than 48 hour
+    # drop patients with less than 48 hour
     den["los_icu_hr"] = (den.outtime - den.intime).astype("timedelta64[h]")
     den = den[(den.los_icu_hr >= 48)]
     den = den[(den.age < 300)]
     den.drop("los_icu_hr", 1, inplace=True)
-    ## clean up
+    # clean up
     den["adult_icu"] = np.where(den["first_careunit"].isin(["PICU", "NICU"]), 0, 1)
     den["gender"] = np.where(den["gender"] == "M", 1, 0)
     den.ethnicity = den.ethnicity.str.lower()
     den.ethnicity.loc[(den.ethnicity.str.contains("^white"))] = "white"
     den.ethnicity.loc[(den.ethnicity.str.contains("^black"))] = "black"
-    den.ethnicity.loc[(den.ethnicity.str.contains("^hisp")) | (den.ethnicity.str.contains("^latin"))] = "hispanic"
+    den.ethnicity.loc[
+        (den.ethnicity.str.contains("^hisp")) | (den.ethnicity.str.contains("^latin"))
+    ] = "hispanic"
     den.ethnicity.loc[(den.ethnicity.str.contains("^asia"))] = "asian"
-    den.ethnicity.loc[~(den.ethnicity.str.contains("|".join(["white", "black", "hispanic", "asian"])))] = "other"
+    den.ethnicity.loc[
+        ~(den.ethnicity.str.contains("|".join(["white", "black", "hispanic", "asian"])))
+    ] = "other"
 
     den.drop(
         [
@@ -354,19 +360,41 @@ def main(sqluser, sqlpass):
     lab48 = pd.read_sql_query(labquery, con)
 
     # =====combine all variables
-    mort_vital = den.merge(vit48, how="left", on=["subject_id", "hadm_id", "icustay_id"])
+    mort_vital = den.merge(
+        vit48, how="left", on=["subject_id", "hadm_id", "icustay_id"]
+    )
     mort_lab = den.merge(lab48, how="left", on=["subject_id", "hadm_id", "icustay_id"])
 
     # create means by age group and gender
     mort_vital["age_group"] = pd.cut(
         mort_vital["age"],
         [-1, 5, 10, 15, 20, 25, 40, 60, 80, 200],
-        labels=["l5", "5_10", "10_15", "15_20", "20_25", "25_40", "40_60", "60_80", "80p"],
+        labels=[
+            "l5",
+            "5_10",
+            "10_15",
+            "15_20",
+            "20_25",
+            "25_40",
+            "40_60",
+            "60_80",
+            "80p",
+        ],
     )
     mort_lab["age_group"] = pd.cut(
         mort_lab["age"],
         [-1, 5, 10, 15, 20, 25, 40, 60, 80, 200],
-        labels=["l5", "5_10", "10_15", "15_20", "20_25", "25_40", "40_60", "60_80", "80p"],
+        labels=[
+            "l5",
+            "5_10",
+            "10_15",
+            "15_20",
+            "20_25",
+            "25_40",
+            "40_60",
+            "60_80",
+            "80p",
+        ],
     )
 
     # one missing variable
@@ -375,16 +403,30 @@ def main(sqluser, sqlpass):
     adult_vital.drop(columns=["adult_icu"], inplace=True)
     adult_lab.drop(columns=["adult_icu"], inplace=True)
 
-    adult_vital.to_csv(os.path.join(mimicdir, "adult_icu_vital.gz"), compression="gzip", index=False)
-    mort_lab.to_csv(os.path.join(mimicdir, "adult_icu_lab.gz"), compression="gzip", index=False)
+    adult_vital.to_csv(
+        os.path.join(mimicdir, "adult_icu_vital.gz"), compression="gzip", index=False
+    )
+    mort_lab.to_csv(
+        os.path.join(mimicdir, "adult_icu_lab.gz"), compression="gzip", index=False
+    )
 
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(description="Query ICU mortality data from mimic database")
-    parser.add_argument("--sqluser", type=str, default="mimicuser", help="postgres user to access mimic database")
+    parser = argparse.ArgumentParser(
+        description="Query ICU mortality data from mimic database"
+    )
     parser.add_argument(
-        "--sqlpass", type=str, default="Iv7bahqu", help="postgres user password to access mimic database"
+        "--sqluser",
+        type=str,
+        default="mimicuser",
+        help="postgres user to access mimic database",
+    )
+    parser.add_argument(
+        "--sqlpass",
+        type=str,
+        default="Iv7bahqu",
+        help="postgres user password to access mimic database",
     )
     args = parser.parse_args()
     main(args.sqluser, args.sqlpass)

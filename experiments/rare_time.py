@@ -6,10 +6,10 @@ import numpy as np
 import torch
 from statsmodels.tsa.arima_process import ArmaProcess
 
-from attribution.mask_group import MaskGroup
-from attribution.perturbation import GaussianBlur
-from baselines.explainers import FO, FP, IG, SVS
-from utils.losses import mse
+from dynamask.attribution.mask_group import MaskGroup
+from dynamask.attribution.perturbation import GaussianBlur
+from dynamask.baselines.explainers import FO, FP, IG, SVS
+from dynamask.utils.losses import mse
 
 explainers = ["dynamask", "fo", "fp", "ig", "shap"]
 

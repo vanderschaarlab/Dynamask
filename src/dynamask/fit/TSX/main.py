@@ -4,13 +4,14 @@ import os
 import sys
 
 import numpy as np
-from TSX.experiments import (
+
+from dynamask.fit.TSX.utils import load_data, load_ghg_data, load_simulated_data
+from dynamask.TSX.experiments import (
     Baseline,
     BaselineExplainer,
     EncoderPredictor,
     FeatureGeneratorExplainer,
 )
-from TSX.utils import load_data, load_ghg_data, load_simulated_data
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
@@ -72,36 +73,53 @@ samples_to_analyze = {
 }
 
 
-def main(experiment, train, data, generator_type, predictor_model, all_samples, cv, output_path):
+def main(
+    experiment,
+    train,
+    data,
+    generator_type,
+    predictor_model,
+    all_samples,
+    cv,
+    output_path,
+):
     print("********** Experiment with the %s data **********" % experiment)
     with open("config.json") as config_file:
         configs = json.load(config_file)[data][experiment]
 
     if not os.path.exists("./data"):
         os.mkdir("./data")
-    ## Load the data
+    # Load the data
     if data == "mimic":
         p_data, train_loader, valid_loader, test_loader = load_data(
             batch_size=configs["batch_size"], path="./data", cv=cv
         )
         feature_size = p_data.feature_size
     elif data == "ghg":
-        p_data, train_loader, valid_loader, test_loader = load_ghg_data(configs["batch_size"], cv=cv)
+        p_data, train_loader, valid_loader, test_loader = load_ghg_data(
+            configs["batch_size"], cv=cv
+        )
         feature_size = p_data.feature_size
     elif data == "simulation_spike":
         p_data, train_loader, valid_loader, test_loader = load_simulated_data(
-            batch_size=configs["batch_size"], path="./data/simulated_spike_data", data_type="spike", cv=cv
+            batch_size=configs["batch_size"],
+            path="./data/simulated_spike_data",
+            data_type="spike",
+            cv=cv,
         )
         feature_size = p_data.shape[1]
 
     elif data == "simulation":
         percentage = 100.0
         p_data, train_loader, valid_loader, test_loader = load_simulated_data(
-            batch_size=configs["batch_size"], path="./data/simulated_data", percentage=percentage / 100, cv=cv
+            batch_size=configs["batch_size"],
+            path="./data/simulated_data",
+            percentage=percentage / 100,
+            cv=cv,
         )
         feature_size = p_data.shape[1]
 
-    ## Create the experiment class
+    # Create the experiment class
     if experiment == "baseline":
         exp = Baseline(train_loader, valid_loader, test_loader, p_data.feature_size)
     elif experiment == "risk_predictor":
@@ -132,7 +150,13 @@ def main(experiment, train, data, generator_type, predictor_model, all_samples, 
         )
     elif experiment == "lime_explainer":
         exp = BaselineExplainer(
-            train_loader, valid_loader, test_loader, feature_size, data_class=p_data, data=data, baseline_method="lime"
+            train_loader,
+            valid_loader,
+            test_loader,
+            feature_size,
+            data_class=p_data,
+            data=data,
+            baseline_method="lime",
         )
 
     if all_samples:
@@ -146,12 +170,23 @@ def main(experiment, train, data, generator_type, predictor_model, all_samples, 
             cv=cv,
         )
     else:
-        exp.run(train=train, n_epochs=configs["n_epochs"], samples_to_analyze=samples_to_analyze[data])
+        exp.run(
+            train=train,
+            n_epochs=configs["n_epochs"],
+            samples_to_analyze=samples_to_analyze[data],
+        )
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Train an ICU mortality prediction model")
-    parser.add_argument("--model", type=str, default="feature_generator_explainer", help="Prediction model")
+    parser = argparse.ArgumentParser(
+        description="Train an ICU mortality prediction model"
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="feature_generator_explainer",
+        help="Prediction model",
+    )
     parser.add_argument("--data", type=str, default="simulation")
     parser.add_argument("--generator", type=str, default="joint_RNN_generator")
     parser.add_argument("--out", type=str, default="./out")

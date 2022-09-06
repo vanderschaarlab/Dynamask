@@ -28,7 +28,9 @@ class Perturbation(ABC):
             mask_tensor: Tensor containing the mask coefficients.
         """
         if X is None or mask_tensor is None:
-            raise NameError("The mask_tensor should be fitted before or while calling the perturb method.")
+            raise NameError(
+                "The mask_tensor should be fitted before or while calling the perturb method."
+            )
 
     @abstractmethod
     def apply_extremal(self, X, extremal_tensor: torch.Tensor):
@@ -41,7 +43,9 @@ class Perturbation(ABC):
             extremal_tensor: (N_area, T, N_feature) tensor containing the different masks.
         """
         if X is None or extremal_tensor is None:
-            raise NameError("The mask_tensor should be fitted before or while calling the perturb method.")
+            raise NameError(
+                "The mask_tensor should be fitted before or while calling the perturb method."
+            )
 
 
 class FadeMovingAverage(Perturbation):
@@ -101,7 +105,9 @@ class GaussianBlur(Perturbation):
         # For each feature and each time, we compute the coefficients for the Gaussian perturbation
         T1_tensor = T_axis.unsqueeze(1).unsqueeze(2)
         T2_tensor = T_axis.unsqueeze(0).unsqueeze(2)
-        filter_coefs = torch.exp(torch.divide(-1.0 * (T1_tensor - T2_tensor) ** 2, 2.0 * (sigma_tensor ** 2)))
+        filter_coefs = torch.exp(
+            torch.divide(-1.0 * (T1_tensor - T2_tensor) ** 2, 2.0 * (sigma_tensor**2))
+        )
         filter_coefs = torch.divide(filter_coefs, torch.sum(filter_coefs, 0))
         # The perturbation is obtained by replacing each input by the linear combination weighted by Gaussian coefs
         X_pert = torch.einsum("sti,si->ti", filter_coefs, X)
@@ -111,11 +117,15 @@ class GaussianBlur(Perturbation):
         N_area, T, N_features = extremal_tensor.shape
         T_axis = torch.arange(1, T + 1, dtype=int, device=self.device)
         # Convert the mask into a tensor containing the width of each Gaussian perturbation
-        sigma_tensor = self.sigma_max * ((1 + self.eps) - extremal_tensor).reshape(N_area, 1, T, N_features)
+        sigma_tensor = self.sigma_max * ((1 + self.eps) - extremal_tensor).reshape(
+            N_area, 1, T, N_features
+        )
         # For each feature and each time, we compute the coefficients for the Gaussian perturbation
         T1_tensor = T_axis.reshape(1, 1, T, 1)
         T2_tensor = T_axis.reshape(1, T, 1, 1)
-        filter_coefs = torch.exp(torch.divide(-1.0 * (T1_tensor - T2_tensor) ** 2, 2.0 * (sigma_tensor ** 2)))
+        filter_coefs = torch.exp(
+            torch.divide(-1.0 * (T1_tensor - T2_tensor) ** 2, 2.0 * (sigma_tensor**2))
+        )
         filter_coefs = filter_coefs / torch.sum(filter_coefs, dim=1, keepdim=True)
         # The perturbation is obtained by replacing each input by the linear combination weighted by Gaussian coefs
         X_pert = torch.einsum("asti,si->ati", filter_coefs, X)

@@ -11,10 +11,10 @@ from captum.attr import DeepLift, GradientShap, IntegratedGradients
 from sklearn.metrics import average_precision_score, roc_auc_score
 from tqdm import tnrange, tqdm_notebook
 
-from fit.TSX.generator import train_joint_feature_generator
+from dynamask.fit.TSX.generator import train_joint_feature_generator
 
 # from TSX.generator import JointFeatureGenerator, train_joint_feature_generator, JointDistributionGenerator
-from fit.TSX.utils import AverageMeter
+from dynamask.fit.TSX.utils import AverageMeter
 
 eps = 1e-10
 
@@ -36,14 +36,18 @@ def kl_multilabel(p1, p2, reduction="none"):
 
 
 class FITExplainer:
-    def __init__(self, model, generator=None, activation=torch.nn.Softmax(-1), n_classes=2):
+    def __init__(
+        self, model, generator=None, activation=torch.nn.Softmax(-1), n_classes=2
+    ):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.generator = generator
         self.base_model = model.to(self.device)
         self.activation = activation
         self.n_classes = n_classes
 
-    def fit_generator(self, generator_model, train_loader, test_loader, n_epochs=300, cv=0):
+    def fit_generator(
+        self, generator_model, train_loader, test_loader, n_epochs=300, cv=0
+    ):
         train_joint_feature_generator(
             generator_model,
             train_loader,
@@ -56,7 +60,15 @@ class FITExplainer:
         )
         self.generator = generator_model.to(self.device)
 
-    def attribute(self, x, y, n_samples=10, retrospective=False, distance_metric="kl", subsets=None):
+    def attribute(
+        self,
+        x,
+        y,
+        n_samples=10,
+        retrospective=False,
+        distance_metric="kl",
+        subsets=None,
+    ):
         """
         Compute importance score for a sample x, over time and features
         :param x: Sample instance to evaluate score for. Shape:[batch, features, time]
@@ -79,20 +91,25 @@ class FITExplainer:
             for i in range(n_features):
                 x_hat = x[:, :, 0 : t + 1].clone()
                 div_all = []
-                t1_all = []
-                t2_all = []
                 for _ in range(n_samples):
-                    x_hat_t, _ = self.generator.forward_conditional(x[:, :, :t], x[:, :, t], [i])
+                    x_hat_t, _ = self.generator.forward_conditional(
+                        x[:, :, :t], x[:, :, t], [i]
+                    )
                     x_hat[:, :, t] = x_hat_t
                     y_hat_t = self.activation(self.base_model(x_hat))
                     if distance_metric == "kl":
-                        if type(self.activation).__name__ == type(torch.nn.Softmax(-1)).__name__:  # noqa: E721
+                        if isinstance(self.activation, torch.nn.Softmax):  # noqa: E721
                             div = torch.sum(
-                                torch.nn.KLDivLoss(reduction="none")(torch.log(p_tm1), p_y_t), -1
-                            ) - torch.sum(torch.nn.KLDivLoss(reduction="none")(torch.log(y_hat_t), p_y_t), -1)
-                            lhs = torch.sum(torch.nn.KLDivLoss(reduction="none")(torch.log(p_tm1), p_y_t), -1)
-                            rhs = torch.sum(torch.nn.KLDivLoss(reduction="none")(torch.log(y_hat_t), p_y_t), -1)
-                            # div = torch.where(rhs>lhs, torch.zeros(rhs.shape), rhs/lhs)
+                                torch.nn.KLDivLoss(reduction="none")(
+                                    torch.log(p_tm1), p_y_t
+                                ),
+                                -1,
+                            ) - torch.sum(
+                                torch.nn.KLDivLoss(reduction="none")(
+                                    torch.log(y_hat_t), p_y_t
+                                ),
+                                -1,
+                            )
                         else:
                             t1 = kl_multilabel(p_y_t, p_tm1)
                             t2 = kl_multilabel(p_y_t, y_hat_t)
@@ -103,10 +120,20 @@ class FITExplainer:
                         div = torch.abs(y_hat_t - p_y_t)
                         div_all.append(np.mean(div.detach().cpu().numpy(), -1))
                     elif distance_metric == "LHS":
-                        div = torch.sum(torch.nn.KLDivLoss(reduction="none")(torch.log(p_tm1), p_y_t), -1)
+                        div = torch.sum(
+                            torch.nn.KLDivLoss(reduction="none")(
+                                torch.log(p_tm1), p_y_t
+                            ),
+                            -1,
+                        )
                         div_all.append(div.cpu().detach().numpy())
                     elif distance_metric == "RHS":
-                        div = torch.sum(torch.nn.KLDivLoss(reduction="none")(torch.log(y_hat_t), p_y_t), -1)
+                        div = torch.sum(
+                            torch.nn.KLDivLoss(reduction="none")(
+                                torch.log(y_hat_t), p_y_t
+                            ),
+                            -1,
+                        )
                         div_all.append(div.cpu().detach().numpy())
                 E_div = np.mean(np.array(div_all), axis=0)
                 if distance_metric == "kl":
@@ -128,7 +155,11 @@ class FFCExplainer:
 
     def fit_generator(self, generator_model, train_loader, test_loader, n_epochs=300):
         train_joint_feature_generator(
-            generator_model, train_loader, test_loader, generator_type="joint_generator", n_epochs=n_epochs
+            generator_model,
+            train_loader,
+            test_loader,
+            generator_type="joint_generator",
+            n_epochs=n_epochs,
         )
         self.generator = generator_model.to(self.device)
 
@@ -156,7 +187,7 @@ class FFCExplainer:
                     x_hat_t = self.generator.forward_joint(x[:, :, :t])
                     x_hat[:, i, t] = x_hat_t[:, i]
                     y_hat_t = self.activation(self.base_model(x_hat))
-                    if type(self.activation).__name__ == type(torch.nn.Softmax(-1)).__name__:  # noqa: E721
+                    if isinstance(self.activation, torch.nn.Softmax):  # noqa: E721
                         # kl = torch.nn.KLDivLoss(reduction='none')(torch.log(y_hat_t), p_y_t)
                         kl = kl_multiclass(p_y_t, y_hat_t)
                     else:
@@ -236,7 +267,9 @@ class AFOExplainer:
                 x_hat = x[:, :, 0 : t + 1].clone()
                 kl_all = []
                 for _ in range(10):
-                    x_hat[:, i, t] = torch.Tensor(np.random.choice(feature_dist, size=(len(x),))).to(self.device)
+                    x_hat[:, i, t] = torch.Tensor(
+                        np.random.choice(feature_dist, size=(len(x),))
+                    ).to(self.device)
                     y_hat_t = self.activation(self.base_model(x_hat))
                     # kl = torch.nn.KLDivLoss(reduction='none')(torch.log(y_hat_t), p_y_t)
                     kl = torch.abs((y_hat_t[:, :]) - (p_y_t[:, :]))
@@ -275,9 +308,13 @@ class MeanImpExplainer:
                 p_tm1 = torch.nn.Softmax(-1)(self.base_model(x[:, :, 0:t]))
                 feature_dist = np.array(self.data_distribution[:, i, :]).reshape(-1)
                 x_hat = x[:, :, 0 : t + 1].clone()
-                x_hat[:, i, t] = (torch.zeros(size=(len(x),)) + np.mean(feature_dist)).to(self.device)
+                x_hat[:, i, t] = (
+                    torch.zeros(size=(len(x),)) + np.mean(feature_dist)
+                ).to(self.device)
                 y_hat_t = torch.nn.Softmax(-1)(self.base_model(x_hat))
-                kl = torch.sum(torch.nn.KLDivLoss(reduction="none")(torch.log(p_tm1), p_y_t), -1) - torch.sum(
+                kl = torch.sum(
+                    torch.nn.KLDivLoss(reduction="none")(torch.log(p_tm1), p_y_t), -1
+                ) - torch.sum(
                     torch.nn.KLDivLoss(reduction="none")(torch.log(y_hat_t), p_y_t), -1
                 )
                 # kl = torch.abs((y_hat_t[:, :]) - (p_y_t[:, :]))
@@ -289,7 +326,6 @@ class CarryForwardExplainer:
     def __init__(self, model, train_loader):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.base_model = model.to(self.device)
-        trainset = list(train_loader.dataset)
 
     def attribute(self, x, y, retrospective=False):
         """
@@ -312,7 +348,9 @@ class CarryForwardExplainer:
                 x_hat = x[:, :, 0 : t + 1].clone()
                 x_hat[:, i, t] = x_hat[:, i, t - 1].to(self.device)
                 y_hat_t = torch.nn.Softmax(-1)(self.base_model(x_hat))
-                kl = torch.sum(torch.nn.KLDivLoss(reduction="none")(torch.log(p_tm1), p_y_t), -1) - torch.sum(
+                kl = torch.sum(
+                    torch.nn.KLDivLoss(reduction="none")(torch.log(p_tm1), p_y_t), -1
+                ) - torch.sum(
                     torch.nn.KLDivLoss(reduction="none")(torch.log(y_hat_t), p_y_t), -1
                 )
                 # kl = torch.abs((y_hat_t[:, :]) - (p_y_t[:, :]))
@@ -341,7 +379,9 @@ class RETAINexplainer:
         labels = []
         outputs = []
 
-        for bi, batch in enumerate(tqdm_notebook(loader, desc="{} batches".format(mode), leave=False)):
+        for bi, batch in enumerate(
+            tqdm_notebook(loader, desc="{} batches".format(mode), leave=False)
+        ):
             inputs, targets = batch
             lengths = torch.randint(low=4, high=inputs.shape[2], size=(len(inputs),))
             lengths, _ = torch.sort(lengths, descending=True)
@@ -349,7 +389,9 @@ class RETAINexplainer:
             inputs = inputs.permute(0, 2, 1)  # Shape: (batch, length, features)
             if self.data == "mimic_int":
                 # this is multilabel with labels over time
-                targets = targets[torch.range(0, len(inputs) - 1).long(), :, lengths - 1]
+                targets = targets[
+                    torch.range(0, len(inputs) - 1).long(), :, lengths - 1
+                ]
                 targets = torch.argmax(targets, dim=1)
             elif (
                 self.data == "simulation"
@@ -385,12 +427,23 @@ class RETAINexplainer:
         return torch.cat(labels, 0), torch.cat(outputs, 0), losses.avg
 
     def _one_hot(self, targets, n_classes=4):
-        targets_onehot = torch.FloatTensor(targets.shape[0], n_classes)  # .to(self.device)
+        targets_onehot = torch.FloatTensor(
+            targets.shape[0], n_classes
+        )  # .to(self.device)
         targets_onehot.zero_()
         targets_onehot.scatter_(1, targets.view(-1, 1), 1)
         return targets_onehot
 
-    def fit_model(self, train_loader, valid_loader, test_loader, epochs=10, lr=0.001, plot=False, cv=0):
+    def fit_model(
+        self,
+        train_loader,
+        valid_loader,
+        test_loader,
+        epochs=10,
+        lr=0.001,
+        plot=False,
+        cv=0,
+    ):
         criterion = torch.nn.CrossEntropyLoss()
         optimizer = torch.optim.Adam(self.base_model.parameters(), lr=lr)
         # optimizer = torch.optim.SGD(self.base_model.parameters(), lr=lr*10, momentum=0.95)
@@ -421,27 +474,43 @@ class RETAINexplainer:
             train_losses.append(train_loss)
 
             # Eval
-            valid_y_true, valid_y_pred, valid_loss = self._epoch(valid_loader, criterion=criterion)
+            valid_y_true, valid_y_pred, valid_loss = self._epoch(
+                valid_loader, criterion=criterion
+            )
             if self.data == "mimic_int":
                 valid_y_true = self._one_hot(valid_y_true)
             valid_losses.append(valid_loss)
 
-            print("Epoch {} - Loss train: {}, valid: {}".format(ei, train_loss, valid_loss))
+            print(
+                "Epoch {} - Loss train: {}, valid: {}".format(
+                    ei, train_loss, valid_loss
+                )
+            )
 
             valid_y_true.to(self.device)
             valid_y_pred.to(self.device)
 
             if self.data == "mimic_int":
-                valid_auc = roc_auc_score(valid_y_true.cpu().numpy(), valid_y_pred.cpu().numpy(), average="weighted")
+                valid_auc = roc_auc_score(
+                    valid_y_true.cpu().numpy(),
+                    valid_y_pred.cpu().numpy(),
+                    average="weighted",
+                )
                 valid_aupr = average_precision_score(
-                    valid_y_true.cpu().numpy(), valid_y_pred.cpu().numpy(), average="weighted"
+                    valid_y_true.cpu().numpy(),
+                    valid_y_pred.cpu().numpy(),
+                    average="weighted",
                 )
             else:
                 valid_auc = roc_auc_score(
-                    valid_y_true.cpu().numpy(), valid_y_pred.cpu().numpy()[:, 1], average="weighted"
+                    valid_y_true.cpu().numpy(),
+                    valid_y_pred.cpu().numpy()[:, 1],
+                    average="weighted",
                 )
                 valid_aupr = average_precision_score(
-                    valid_y_true.cpu().numpy(), valid_y_pred.cpu().numpy()[:, 1], average="weighted"
+                    valid_y_true.cpu().numpy(),
+                    valid_y_pred.cpu().numpy()[:, 1],
+                    average="weighted",
                 )
 
             is_best = valid_auc > best_valid_auc
@@ -453,7 +522,9 @@ class RETAINexplainer:
                 best_valid_aupr = valid_aupr
 
                 # evaluate on the test set
-                test_y_true, test_y_pred, test_loss = self._epoch(test_loader, criterion=criterion)
+                test_y_true, test_y_pred, test_loss = self._epoch(
+                    test_loader, criterion=criterion
+                )
                 if self.data == "mimic_int":
                     test_y_true = self._one_hot(test_y_true)
 
@@ -463,39 +534,48 @@ class RETAINexplainer:
                 test_y_pred.to(self.device)
 
                 if self.data == "mimic_int":
-                    train_auc = roc_auc_score(
-                        train_y_true.cpu().numpy(), train_y_pred.cpu().numpy(), average="weighted"
+                    test_auc = roc_auc_score(
+                        test_y_true.cpu().numpy(),
+                        test_y_pred.cpu().numpy(),
+                        average="weighted",
                     )
-                    train_aupr = average_precision_score(
-                        train_y_true.cpu().numpy(), train_y_pred.cpu().numpy(), average="weighted"
-                    )
-                    test_auc = roc_auc_score(test_y_true.cpu().numpy(), test_y_pred.cpu().numpy(), average="weighted")
                     test_aupr = average_precision_score(
-                        test_y_true.cpu().numpy(), test_y_pred.cpu().numpy(), average="weighted"
+                        test_y_true.cpu().numpy(),
+                        test_y_pred.cpu().numpy(),
+                        average="weighted",
                     )
                 else:
-                    train_auc = roc_auc_score(
-                        train_y_true.cpu().numpy(), train_y_pred.cpu().numpy()[:, 1], average="weighted"
-                    )
-                    train_aupr = average_precision_score(
-                        train_y_true.cpu().numpy(), train_y_pred.cpu().numpy()[:, 1], average="weighted"
-                    )
                     test_auc = roc_auc_score(
-                        test_y_true.cpu().numpy(), test_y_pred.cpu().numpy()[:, 1], average="weighted"
+                        test_y_true.cpu().numpy(),
+                        test_y_pred.cpu().numpy()[:, 1],
+                        average="weighted",
                     )
                     test_aupr = average_precision_score(
-                        test_y_true.cpu().numpy(), test_y_pred.cpu().numpy()[:, 1], average="weighted"
+                        test_y_true.cpu().numpy(),
+                        test_y_pred.cpu().numpy()[:, 1],
+                        average="weighted",
                     )
 
                 if not os.path.exists("./experiments/results/%s" % self.data):
                     os.mkdir("./experiments/results/%s" % self.data)
-                torch.save(self.base_model.state_dict(), "./experiments/results/%s/retain_%d.pt" % (self.data, cv))
+                torch.save(
+                    self.base_model.state_dict(),
+                    "./experiments/results/%s/retain_%d.pt" % (self.data, cv),
+                )
 
             # plot
             if plot:
                 ax.clear()
-                ax.plot(np.arange(len(train_losses)), np.array(train_losses), label="Training Loss")
-                ax.plot(np.arange(len(valid_losses)), np.array(valid_losses), label="Validation Loss")
+                ax.plot(
+                    np.arange(len(train_losses)),
+                    np.array(train_losses),
+                    label="Training Loss",
+                )
+                ax.plot(
+                    np.arange(len(valid_losses)),
+                    np.array(valid_losses),
+                    label="Validation Loss",
+                )
                 ax.set_xlabel("epoch")
                 ax.set_ylabel("Loss")
                 ax.legend(loc="best")
@@ -514,13 +594,21 @@ class RETAINexplainer:
     def attribute(self, x, y):
         score = np.zeros(x.shape)
         x = x.permute(0, 2, 1)  # shape:[batch, time, feature]
-        logit, alpha, beta = self.base_model(x, (torch.ones((len(x),)) * x.shape[1]).long())
+        logit, alpha, beta = self.base_model(
+            x, (torch.ones((len(x),)) * x.shape[1]).long()
+        )
         w_emb = self.base_model.embedding[1].weight
         for i in range(x.shape[2]):
             for t in range(x.shape[1]):
-                imp = self.base_model.output(beta[:, t, :] * w_emb[:, i].expand_as(beta[:, t, :]))
+                imp = self.base_model.output(
+                    beta[:, t, :] * w_emb[:, i].expand_as(beta[:, t, :])
+                )
                 score[:, i, t] = (
-                    (alpha[:, t, 0] * imp[torch.range(0, len(imp) - 1).long(), y.long()] * x[:, t, i])
+                    (
+                        alpha[:, t, 0]
+                        * imp[torch.range(0, len(imp) - 1).long(), y.long()]
+                        * x[:, t, i]
+                    )
                     .detach()
                     .cpu()
                     .numpy()
@@ -545,9 +633,11 @@ class DeepLiftExplainer:
             for t in range(1, x.shape[-1]):
                 x_in = x[:, :, : t + 1]
                 pred = self.activation(self.base_model(x_in))
-                if type(self.activation).__name__ == type(torch.nn.Softmax(-1)).__name__:  # noqa: E721
+                if isinstance(self.activation, torch.nn.Softmax):  # noqa: E721
                     target = torch.argmax(pred, -1)
-                    imp = self.explainer.attribute(x_in, target=target.long(), baselines=(x[:, :, : t + 1] * 0))
+                    imp = self.explainer.attribute(
+                        x_in, target=target.long(), baselines=(x[:, :, : t + 1] * 0)
+                    )
                     score[:, :, t] = abs(imp.detach().cpu().numpy()[:, :, -1])
                 else:
                     # this works for multilabel and single prediction aka spike
@@ -556,12 +646,16 @@ class DeepLiftExplainer:
                         imp = torch.zeros(list(x_in.shape) + [n_labels])
                         for l in range(n_labels):  # noqa: E741
                             target = (pred[:, l] > 0.5).float()  # [:,0]
-                            imp[:, :, :, l] = self.explainer.attribute(x_in, target=target.long(), baselines=(x_in * 0))
+                            imp[:, :, :, l] = self.explainer.attribute(
+                                x_in, target=target.long(), baselines=(x_in * 0)
+                            )
                         score[:, :, t] = (imp.detach().cpu().numpy()).max(3)[:, :, -1]
                     else:
                         # this is for spike with just one label. and we will explain one cla
                         target = (pred > 0.5).float()[:, 0]
-                        imp = self.explainer.attribute(x_in, target=target.long(), baselines=(x[:, :, : t + 1] * 0))
+                        imp = self.explainer.attribute(
+                            x_in, target=target.long(), baselines=(x[:, :, : t + 1] * 0)
+                        )
                         score[:, :, t] = abs(imp.detach().cpu().numpy()[:, :, -1])
         return score
 
@@ -586,9 +680,11 @@ class IGExplainer:
             for t in range(x.shape[-1]):
                 x_in = x[:, :, : t + 1]
                 pred = self.activation(self.base_model(x_in))
-                if type(self.activation).__name__ == type(torch.nn.Softmax(-1)).__name__:  # noqa: E721
+                if isinstance(self.activation, torch.nn.Softmax):  # noqa: E721
                     target = torch.argmax(pred, -1)
-                    imp = self.explainer.attribute(x_in, target=target, baselines=(x[:, :, : t + 1] * 0))
+                    imp = self.explainer.attribute(
+                        x_in, target=target, baselines=(x[:, :, : t + 1] * 0)
+                    )
                     score[:, :, t] = imp.detach().cpu().numpy()[:, :, -1]
                 else:
                     # print(pred)
@@ -597,12 +693,16 @@ class IGExplainer:
                         imp = torch.zeros(list(x_in.shape) + [n_labels])
                         for l in range(n_labels):  # noqa: E741
                             target = (pred[:, l] > 0.5).float()  # [:,0]
-                            imp[:, :, :, l] = self.explainer.attribute(x_in, target=target.long(), baselines=(x_in * 0))
+                            imp[:, :, :, l] = self.explainer.attribute(
+                                x_in, target=target.long(), baselines=(x_in * 0)
+                            )
                         score[:, :, t] = (imp.detach().cpu().numpy()).max(3)[:, :, -1]
                     else:
                         # this is for spike with just one label. and we will explain one class
                         target = (pred > 0.5).float()[:, 0]
-                        imp = self.explainer.attribute(x_in, target=target.long(), baselines=(x_in * 0))
+                        imp = self.explainer.attribute(
+                            x_in, target=target.long(), baselines=(x_in * 0)
+                        )
                         score[:, :, t] = imp.detach().cpu().numpy()[:, :, -1]
         return score
 
@@ -619,7 +719,11 @@ class GradientShapExplainer:
         x, y = x.to(self.device), y.to(self.device)
         if retrospective:
             score = self.explainer.attribute(
-                x, target=y.long(), n_samples=50, stdevs=0.0001, baselines=torch.cat([x * 0, x * 1])
+                x,
+                target=y.long(),
+                n_samples=50,
+                stdevs=0.0001,
+                baselines=torch.cat([x * 0, x * 1]),
             )
             score = abs(score.cpu().numpy())
         else:
@@ -628,14 +732,16 @@ class GradientShapExplainer:
             for t in range(x.shape[-1]):
                 x_in = x[:, :, : t + 1]
                 pred = self.activation(self.base_model(x_in))
-                if type(self.activation).__name__ == type(torch.nn.Softmax(-1)).__name__:  # noqa: E721
+                if isinstance(self.activation, torch.nn.Softmax):  # noqa: E721
                     target = torch.argmax(pred, -1)
                     imp = self.explainer.attribute(
                         x_in,
                         target=target.long(),
                         n_samples=50,
                         stdevs=0.0001,
-                        baselines=torch.cat([x[:, :, : t + 1] * 0, x[:, :, : t + 1] * 1]),
+                        baselines=torch.cat(
+                            [x[:, :, : t + 1] * 0, x[:, :, : t + 1] * 1]
+                        ),
                     )
                     score[:, :, t] = imp.cpu().numpy()[:, :, -1]
                 else:
@@ -644,12 +750,16 @@ class GradientShapExplainer:
                         imp = torch.zeros(list(x_in.shape) + [n_labels])
                         for l in range(n_labels):  # noqa: E741
                             target = (pred[:, l] > 0.5).float()  # [:,0]
-                            imp[:, :, :, l] = self.explainer.attribute(x_in, target=target.long(), baselines=(x_in * 0))
+                            imp[:, :, :, l] = self.explainer.attribute(
+                                x_in, target=target.long(), baselines=(x_in * 0)
+                            )
                         score[:, :, t] = (imp.detach().cpu().numpy()).max(3)[:, :, -1]
                     else:
                         # this is for spike with just one label. and we will explain one cla
                         target = (pred > 0.5).float()[:, 0]
-                        imp = self.explainer.attribute(x_in, target=target.long(), baselines=(x[:, :, : t + 1] * 0))
+                        imp = self.explainer.attribute(
+                            x_in, target=target.long(), baselines=(x[:, :, : t + 1] * 0)
+                        )
                         score[:, :, t] = abs(imp.detach().cpu().numpy()[:, :, -1])
         return score
 
@@ -678,14 +788,20 @@ class GradientShapExplainer:
 
 
 class LIMExplainer:
-    def __init__(self, model, train_loader, activation=torch.nn.Softmax(-1), n_classes=2):
+    def __init__(
+        self, model, train_loader, activation=torch.nn.Softmax(-1), n_classes=2
+    ):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.base_model = model
         self.base_model.device = self.device
         trainset = list(train_loader.dataset)
         self.activation = activation
         x_train = torch.stack([x[0] for x in trainset]).to(self.device)
-        x_train = x_train[torch.arange(len(x_train)), :, torch.randint(5, x_train.shape[-1], (len(x_train),))]
+        x_train = x_train[
+            torch.arange(len(x_train)),
+            :,
+            torch.randint(5, x_train.shape[-1], (len(x_train),)),
+        ]
         self.explainer = lime.lime_tabular.LimeTabularExplainer(
             x_train.cpu().numpy(),
             feature_names=["f%d" % c for c in range(x_train.shape[1])],
@@ -711,9 +827,11 @@ class LIMExplainer:
         score = np.zeros(x.shape)
         for sample_ind, sample in enumerate(x):
             for t in range(1, x.shape[-1]):
-                imp = self.explainer.explain_instance(sample[:, t], self._predictor_wrapper, top_labels=self.n_classes)
+                imp = self.explainer.explain_instance(
+                    sample[:, t], self._predictor_wrapper, top_labels=self.n_classes
+                )
                 # This likely should change
-                if type(self.activation).__name__ == type(torch.nn.Softmax(-1)).__name__:  # noqa: E721
+                if isinstance(self.activation, torch.nn.Softmax):  # noqa: E721
                     for ind, st in enumerate(imp.as_list()):
                         imp_score = st[1]
                         terms = re.split("< | > | <= | >=", st[0])
@@ -728,70 +846,3 @@ class LIMExplainer:
 
             print("sample:", sample_ind, " done")
         return score
-
-
-# class FITSubGroupExplainer:
-#     def __init__(self, model, generator=None, activation=torch.nn.Softmax(-1)):
-#         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-#         self.generator = generator
-#         self.base_model = model.to(self.device)
-#         self.activation = activation
-
-#     def fit_generator(self, generator_model, train_loader, test_loader, n_epochs=300):
-#         train_joint_feature_generator(
-#             generator_model,
-#             train_loader,
-#             test_loader,
-#             generator_type="joint_generator",
-#             n_epochs=300,
-#             lr=0.001,
-#             weight_decay=0,
-#         )
-#         self.generator = generator_model.to(self.device)
-
-#     def attribute(self, x, y, n_samples=10, retrospective=False, distance_metric="kl"):
-#         """
-#         Compute importance score for a sample x, over time and features
-#         :param x: Sample instance to evaluate score for. Shape:[batch, features, time]
-#         :param n_samples: number of Monte-Carlo samples
-#         :return: Importance score matrix of shape:[batch, features, time]
-#         """
-#         self.generator.eval()
-#         self.generator.to(self.device)
-#         x = x.to(self.device)
-#         _, n_features, t_len = x.shape
-#         score = np.zeros(x.shape)
-#         if retrospective:
-#             p_y_t = self.activation(self.base_model(x))
-
-#         for t in range(1, t_len):
-#             if not retrospective:
-#                 p_y_t = self.activation(self.base_model(x[:, :, : t + 1]))
-#             x_hat = x[:, :, 0 : t + 1].clone()
-#             div_all = []
-#             p_tm1 = self.activation(self.base_model(x[:, :, 0:t]))
-#             for _ in range(n_samples):
-#                 x_hat_t, _ = self.generator.forward_conditional(x[:, :, :t], x[:, :, t], S)
-#                 x_hat[:, :, t] = x_hat_t
-#                 y_hat_t = self.activation(self.base_model(x_hat))
-#                 if distance_metric == "kl":
-#                     # kl = torch.nn.KLDivLoss(reduction='none')(torch.Tensor(np.log(y_hat_t)).to(self.device), p_y_t)
-#                     if type(self.activation).__name__ == type(torch.nn.Softmax(-1)).__name__:  # noqa: E721
-#                         div = torch.sum(
-#                             torch.nn.KLDivLoss(reduction="none")(torch.log(p_tm1 + eps), p_y_t + eps), -1
-#                         ) - torch.sum(torch.nn.KLDivLoss(reduction="none")(torch.log(y_hat_t + eps), p_y_t + eps), -1)
-#                     else:
-#                         div = torch.sum(kl_multilabel(p_y_t, p_tm1), -1) - torch.sum(kl_multilabel(p_y_t, y_hat_t), -1)
-#                     # print(x_hat_t[0], x[0, :, t], self.generator.forward_joint(x[:, :, :t])[0])
-#                     # kl_all.append(torch.sum(kl, -1).cpu().detach().numpy())
-#                     div_all.append(div.cpu().detach().numpy())
-#                 elif distance_metric == "mean_divergence":
-#                     div = torch.abs(y_hat_t - p_y_t)
-#                     div_all.append(np.mean(div.detach().cpu().numpy(), -1))
-#             E_div = np.mean(np.array(div_all), axis=0)
-#             if distance_metric == "kl":
-#                 # score[:, i, t] = 2./(1+np.exp(-1*E_div)) - 1
-#                 score[:, i, t] = E_div
-#             elif distance_metric == "mean_divergence":
-#                 score[:, i, t] = 1 - E_div
-#         return score

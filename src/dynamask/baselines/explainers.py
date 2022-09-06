@@ -16,7 +16,7 @@ from captum.attr import (
     ShapleyValueSampling,
 )
 
-from utils.tensor_manipulation import normalize as normal
+from dynamask.utils.tensor_manipulation import normalize as normal
 
 # Perturbation methods:
 
@@ -27,10 +27,14 @@ class FO:
 
     def attribute(self, X, normalize=True):
         explainer = Occlusion(forward_func=self.f)
-        baseline = torch.mean(X, dim=0, keepdim=True)  # The baseline is chosen to be the average value for each feature
+        baseline = torch.mean(
+            X, dim=0, keepdim=True
+        )  # The baseline is chosen to be the average value for each feature
         attr = explainer.attribute(X, sliding_window_shapes=(1,), baselines=baseline)
         if normalize:
-            attr = normal(torch.abs(attr))  # The absolute value of the FO attribution gives the feature importance
+            attr = normal(
+                torch.abs(attr)
+            )  # The absolute value of the FO attribution gives the feature importance
         return attr
 
 
@@ -42,7 +46,9 @@ class FP:
         explainer = FeaturePermutation(forward_func=self.f)
         attr = explainer.attribute(X)
         if normalize:
-            attr = normal(torch.abs(attr))  # The absolute value of the FP attribution gives the feature importance
+            attr = normal(
+                torch.abs(attr)
+            )  # The absolute value of the FP attribution gives the feature importance
         return attr
 
 
@@ -58,7 +64,9 @@ class IG:
         baseline = X * 0  # The baseline is chosen to be zero for all features
         attr = explainer.attribute(X, baselines=baseline)
         if normalize:
-            attr = normal(torch.abs(attr))  # The absolute value of the IG attribution gives the feature importance
+            attr = normal(
+                torch.abs(attr)
+            )  # The absolute value of the IG attribution gives the feature importance
         return attr
 
 
@@ -88,5 +96,7 @@ class SVS:
         baseline = torch.mean(X, dim=0, keepdim=True)
         attr = explainer.attribute(X, baselines=baseline)
         if normalize:
-            attr = normal(torch.abs(attr))  # The absolute value of the SVS attribution gives the feature importance
+            attr = normal(
+                torch.abs(attr)
+            )  # The absolute value of the SVS attribution gives the feature importance
         return attr

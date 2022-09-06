@@ -12,12 +12,29 @@ from sklearn.metrics import classification_report, precision_score, roc_auc_scor
 from sklearn.model_selection import KFold, StratifiedShuffleSplit
 from torch.utils.data import DataLoader
 
-from fit.TSX.models import PatientData
+from dynamask.fit.TSX.models import PatientData
 
 # np.set_printoptions(threshold=sys.maxsize)
 # sns.set()
 
-line_styles_map = ["-", "--", "-.", ":", "-", "--", "-.", ":", "-", "--", "-.", ":", "-", "--", "-.", ":"]
+line_styles_map = [
+    "-",
+    "--",
+    "-.",
+    ":",
+    "-",
+    "--",
+    "-.",
+    ":",
+    "-",
+    "--",
+    "-.",
+    ":",
+    "-",
+    "--",
+    "-.",
+    ":",
+]
 marker_styles_map = [
     "o",
     "v",
@@ -73,7 +90,8 @@ def evaluate_binary(labels, predicted_label, predicted_probability):
         auc = 0
     else:
         auc = roc_auc_score(
-            np.array(labels.cpu()), np.array(predicted_probability.view(len(labels), -1).detach().cpu())
+            np.array(labels.cpu()),
+            np.array(predicted_probability.view(len(labels), -1).detach().cpu()),
         )
     recall = torch.matmul(labels, predicted_label).item()
     precision = precision_score(labels_array, prediction_array)
@@ -87,33 +105,47 @@ def evaluate(labels, predicted_label, predicted_probability):
 
     # print(labels_array.shape, predicted_label.shape, predicted_probability.shape)
     if len(np.unique(labels_array)) >= 2:
-        auc = roc_auc_score(labels_array[:, 1], np.array(predicted_probability[:, 1].detach().cpu()))
-        report = classification_report(labels_array[:, 1], prediction_array[:, 1], output_dict=True)
+        auc = roc_auc_score(
+            labels_array[:, 1], np.array(predicted_probability[:, 1].detach().cpu())
+        )
+        report = classification_report(
+            labels_array[:, 1], prediction_array[:, 1], output_dict=True
+        )
         recall = report["macro avg"]["recall"]
         precision = report["macro avg"]["precision"]
     else:
         auc = 0
         recall = 0
         precision = 0
-    correct_label = np.equal(np.argmax(labels_array, 1), np.argmax(prediction_array, 1)).sum()
+    correct_label = np.equal(
+        np.argmax(labels_array, 1), np.argmax(prediction_array, 1)
+    ).sum()
     return auc, recall, precision, correct_label
 
 
-def evaluate_multiclass(labels, predicted_label, predicted_probability, task="multiclass"):
+def evaluate_multiclass(
+    labels, predicted_label, predicted_probability, task="multiclass"
+):
     labels_array = labels.detach().cpu().numpy()  # one hot
     prediction_array = predicted_label.detach().cpu().numpy()  # one hot
 
     if task == "multiclass":
         if len(np.unique(np.argmax(labels_array, 1))) >= 2:
             labels_array = labels_array[:, np.unique(np.argmax(labels_array, 1))]
-            prediction_array = prediction_array[:, np.unique(np.argmax(labels_array, 1))]
-            predicted_probability = predicted_probability[:, np.unique(np.argmax(labels_array, 1))]
+            prediction_array = prediction_array[
+                :, np.unique(np.argmax(labels_array, 1))
+            ]
+            predicted_probability = predicted_probability[
+                :, np.unique(np.argmax(labels_array, 1))
+            ]
             predicted_probability = np.array(predicted_probability.detach().cpu())
             auc_list = roc_auc_score(labels_array, predicted_probability, average=None)
             # print('macro auc:', auc_list)
             auc = np.mean(auc_list)
 
-            report = classification_report(labels_array, prediction_array, output_dict=True)
+            report = classification_report(
+                labels_array, prediction_array, output_dict=True
+            )
             recall = report["macro avg"]["recall"]
             precision = report["macro avg"]["precision"]
         else:
@@ -121,7 +153,9 @@ def evaluate_multiclass(labels, predicted_label, predicted_probability, task="mu
             recall = 0
             precision = 0
             auc_list = []
-        correct_label = np.equal(np.argmax(labels_array, 1), np.argmax(prediction_array, 1)).sum()
+        correct_label = np.equal(
+            np.argmax(labels_array, 1), np.argmax(prediction_array, 1)
+        ).sum()
     elif task == "multilabel":
         idx = []
         for l in range(labels_array.shape[1]):  # noqa: E741
@@ -136,7 +170,9 @@ def evaluate_multiclass(labels, predicted_label, predicted_probability, task="mu
             # print(prediction_array, np.any(np.isnan(prediction_array)))
             auc_list = roc_auc_score(labels_array, predicted_probability, average=None)
             auc = np.mean(auc_list)
-            report = classification_report(labels_array, prediction_array, output_dict=True)
+            report = classification_report(
+                labels_array, prediction_array, output_dict=True
+            )
             recall = report["macro avg"]["recall"]
             precision = report["macro avg"]["precision"]
         else:
@@ -144,15 +180,18 @@ def evaluate_multiclass(labels, predicted_label, predicted_probability, task="mu
             recall = 0
             precision = 0
             auc_list = []
-        correct_label = np.equal(np.argmax(labels_array, 1), np.argmax(prediction_array, 1)).sum()
+        correct_label = np.equal(
+            np.argmax(labels_array, 1), np.argmax(prediction_array, 1)
+        ).sum()
     return auc, recall, precision, correct_label, auc_list
 
 
-def test(test_loader, model, device, criteria=torch.nn.CrossEntropyLoss(), verbose=True):
+def test(
+    test_loader, model, device, criteria=torch.nn.CrossEntropyLoss(), verbose=True
+):
     model.to(device)
     correct_label = 0
     recall_test, precision_test, auc_test = 0, 0, 0
-    count = 0
     loss = 0
     total = 0
     auc_test = 0
@@ -160,9 +199,9 @@ def test(test_loader, model, device, criteria=torch.nn.CrossEntropyLoss(), verbo
     for i, (x, y) in enumerate(test_loader):
         x, y = torch.Tensor(x.float()).to(device), torch.Tensor(y.float()).to(device)
         out = model(x)
-        y = y.view(y.shape[0],)
-
-        risks = torch.nn.Softmax(-1)(out)[:, 1]
+        y = y.view(
+            y.shape[0],
+        )
 
         label_onehot = torch.zeros(out.shape).to(device)
         pred_onehot = torch.zeros(out.shape).to(device)
@@ -172,7 +211,9 @@ def test(test_loader, model, device, criteria=torch.nn.CrossEntropyLoss(), verbo
         label_onehot.zero_()
         label_onehot.scatter_(1, y.long().view(-1, 1), 1)
 
-        auc, recall, precision, correct = evaluate(label_onehot, pred_onehot, torch.nn.Softmax(-1)(out))
+        auc, recall, precision, correct = evaluate(
+            label_onehot, pred_onehot, torch.nn.Softmax(-1)(out)
+        )
 
         # prediction = (out > 0.5).view(len(y), ).float()
         # auc, recall, precision, correct = evaluate(y, prediction, out)
@@ -180,24 +221,30 @@ def test(test_loader, model, device, criteria=torch.nn.CrossEntropyLoss(), verbo
         auc_test = auc_test + auc
         recall_test = +recall
         precision_test = +precision
-        count = +1
         loss += criteria(out, y.long()).item()
         total += len(x)
     return recall_test, precision_test, auc_test / (i + 1), correct_label, loss
 
 
-def train(train_loader, model, device, optimizer, loss_criterion=torch.nn.CrossEntropyLoss()):
+def train(
+    train_loader, model, device, optimizer, loss_criterion=torch.nn.CrossEntropyLoss()
+):
     model = model.to(device)
     model.train()
     auc_train = 0
     recall_train, precision_train, auc_train, correct_label, epoch_loss = 0, 0, 0, 0, 0
     for i, (signals, labels) in enumerate(train_loader):
         optimizer.zero_grad()
-        signals, labels = torch.Tensor(signals.float()).to(device), torch.Tensor(labels.float()).to(device)
-        labels = labels.view(labels.shape[0],)
-        labels = labels.view(labels.shape[0],)
+        signals, labels = torch.Tensor(signals.float()).to(device), torch.Tensor(
+            labels.float()
+        ).to(device)
+        labels = labels.view(
+            labels.shape[0],
+        )
+        labels = labels.view(
+            labels.shape[0],
+        )
         logits = model(signals)
-        risks = torch.nn.Softmax(-1)(logits)[:, 1]
 
         label_onehot = torch.zeros(logits.shape).to(device)
         pred_onehot = torch.zeros(logits.shape).to(device)
@@ -209,7 +256,9 @@ def train(train_loader, model, device, optimizer, loss_criterion=torch.nn.CrossE
         label_onehot.scatter_(1, labels.long().view(-1, 1), 1)
 
         # auc, recall, precision, correct = evaluate(labels_th.contiguous().view(-1), predicted_label.contiguous().view(-1), predictions.contiguous().view(-1))
-        auc, recall, precision, correct = evaluate(label_onehot, pred_onehot, torch.nn.Softmax(-1)(logits))
+        auc, recall, precision, correct = evaluate(
+            label_onehot, pred_onehot, torch.nn.Softmax(-1)(logits)
+        )
 
         # auc, recall, precision, correct = evaluate(label_onehot, predicted_label, risks)
         correct_label += correct
@@ -221,18 +270,42 @@ def train(train_loader, model, device, optimizer, loss_criterion=torch.nn.CrossE
         epoch_loss = +loss.item()
         loss.backward()
         optimizer.step()
-    return recall_train, precision_train, auc_train / (i + 1), correct_label, epoch_loss, i + 1
+    return (
+        recall_train,
+        precision_train,
+        auc_train / (i + 1),
+        correct_label,
+        epoch_loss,
+        i + 1,
+    )
 
 
-def train_model(model, train_loader, valid_loader, optimizer, n_epochs, device, experiment, data="mimic", cv=0):
+def train_model(
+    model,
+    train_loader,
+    valid_loader,
+    optimizer,
+    n_epochs,
+    device,
+    experiment,
+    data="mimic",
+    cv=0,
+):
     train_loss_trend = []
     test_loss_trend = []
 
     for epoch in range(n_epochs + 1):
-        recall_train, precision_train, auc_train, correct_label_train, epoch_loss, n_batches = train(
-            train_loader, model, device, optimizer
+        (
+            recall_train,
+            precision_train,
+            auc_train,
+            correct_label_train,
+            epoch_loss,
+            n_batches,
+        ) = train(train_loader, model, device, optimizer)
+        recall_test, precision_test, auc_test, correct_label_test, test_loss = test(
+            valid_loader, model, device
         )
-        recall_test, precision_test, auc_test, correct_label_test, test_loss = test(valid_loader, model, device)
         train_loss_trend.append(epoch_loss)
         test_loss_trend.append(test_loss)
         if epoch % 10 == 0:
@@ -240,13 +313,15 @@ def train_model(model, train_loader, valid_loader, optimizer, n_epochs, device, 
             print(
                 "Training ===>loss: ",
                 epoch_loss,
-                " Accuracy: %.2f percent" % (100 * correct_label_train / (len(train_loader.dataset))),
+                " Accuracy: %.2f percent"
+                % (100 * correct_label_train / (len(train_loader.dataset))),
                 " AUC: %.2f" % (auc_train),
             )
             print(
                 "Test ===>loss: ",
                 test_loss,
-                " Accuracy: %.2f percent" % (100 * correct_label_test / (len(valid_loader.dataset))),
+                " Accuracy: %.2f percent"
+                % (100 * correct_label_test / (len(valid_loader.dataset))),
                 " AUC: %.2f" % (auc_test),
             )
 
@@ -254,7 +329,10 @@ def train_model(model, train_loader, valid_loader, optimizer, n_epochs, device, 
     if not os.path.exists(os.path.join("./experiments/results/", data)):
         os.mkdir(os.path.join("./experiments/results/", data))
 
-    torch.save(model.state_dict(), "./experiments/results/" + data + "/" + str(experiment) + "_" + str(cv) + ".pt")
+    torch.save(
+        model.state_dict(),
+        "./experiments/results/" + data + "/" + str(experiment) + "_" + str(cv) + ".pt",
+    )
     plt.plot(train_loss_trend, label="Train loss")
     plt.plot(test_loss_trend, label="Validation loss")
     plt.legend()
@@ -282,12 +360,21 @@ def train_model_multiclass(
 
     for epoch in range(n_epochs):
         model.train()
-        recall_train, precision_train, auc_train, correct_label_train, epoch_loss, count = 0, 0, 0, 0, 0, 0
+        (
+            recall_train,
+            precision_train,
+            auc_train,
+            correct_label_train,
+            epoch_loss,
+            count,
+        ) = (0, 0, 0, 0, 0, 0)
         for i, (signals, labels) in enumerate(train_loader):
             signals, labels = signals.to(device), labels.to(device)
             if num > 1:
                 # time_points = [int(tt) for tt in np.linspace(20, signals.shape[-1] - 1, num=num)]
-                time_points = np.random.randint(low=4, high=signals.shape[-1] - 1, size=num)
+                time_points = np.random.randint(
+                    low=4, high=signals.shape[-1] - 1, size=num
+                )
                 time_points = np.sort(time_points)
                 time_points[-1] = signals.shape[-1] - 1
             else:
@@ -305,7 +392,7 @@ def train_model_multiclass(
                     label = labels
 
                 label_onehot = label  # assumed already one-hot encoded
-                if type(loss_criterion).__name__ == type(torch.nn.CrossEntropyLoss()).__name__:  # noqa: E721
+                if isinstance(loss_criterion, torch.nn.CrossEntropyLoss):  # noqa: E721
                     pred_onehot = torch.zeros(predictions.shape).to(device)
                     _, predicted_label = predictions.max(1)
                     pred_onehot.scatter_(1, predicted_label.view(-1, 1), 1)
@@ -323,9 +410,7 @@ def train_model_multiclass(
                 precision_train += precision
                 count += 1
 
-                if (
-                    type(loss_criterion).__name__ == type(torch.nn.CrossEntropyLoss()).__name__  # noqa: E721
-                ):  # multiclass
+                if isinstance(loss_criterion, torch.nn.CrossEntropyLoss):  # multiclass
                     # print('here')
                     _, targets = label.max(1)
                     targets = targets.long()
@@ -336,7 +421,13 @@ def train_model_multiclass(
                 reconstruction_loss.backward()
                 optimizer.step()
 
-        test_loss, recall_test, precision_test, auc_test, correct_label_test = test_model_multiclass(
+        (
+            test_loss,
+            recall_test,
+            precision_test,
+            auc_test,
+            correct_label_test,
+        ) = test_model_multiclass(
             model, valid_loader, num=num, loss_criterion=loss_criterion
         )
 
@@ -348,17 +439,25 @@ def train_model_multiclass(
             print(
                 "Training ===>loss: ",
                 epoch_loss / ((i + 1) * num),
-                " Accuracy: %.2f percent" % (100 * correct_label_train / (len(train_loader.dataset) * num)),
+                " Accuracy: %.2f percent"
+                % (100 * correct_label_train / (len(train_loader.dataset) * num)),
                 " AUC: %.2f" % (auc_train / ((i + 1) * num)),
             )
             print(
                 "Test ===>loss: ",
                 test_loss,
-                " Accuracy: %.2f percent" % (100 * correct_label_test / (len(valid_loader.dataset) * num)),
+                " Accuracy: %.2f percent"
+                % (100 * correct_label_test / (len(valid_loader.dataset) * num)),
                 " AUC: %.2f" % (auc_test),
             )
 
-    test_loss, recall_test, precision_test, auc_test, correct_label_test = test_model_multiclass(
+    (
+        test_loss,
+        recall_test,
+        precision_test,
+        auc_test,
+        correct_label_test,
+    ) = test_model_multiclass(
         model, valid_loader, num=num, loss_criterion=loss_criterion
     )
     print("Test AUC: ", auc_test)
@@ -366,7 +465,10 @@ def train_model_multiclass(
     # Save model and results
     if not os.path.exists(os.path.join("./ckpt/", data)):
         os.mkdir(os.path.join("./ckpt/", data))
-    torch.save(model.state_dict(), "./ckpt/" + data + "/" + str(experiment) + "_" + str(cv) + ".pt")
+    torch.save(
+        model.state_dict(),
+        "./ckpt/" + data + "/" + str(experiment) + "_" + str(cv) + ".pt",
+    )
     plt.plot(train_loss_trend, label="Train loss")
     plt.plot(test_loss_trend, label="Validation loss")
     plt.legend()
@@ -374,7 +476,16 @@ def train_model_multiclass(
 
 
 def train_model_rt(
-    model, train_loader, valid_loader, optimizer, n_epochs, device, experiment, data="simulation", num=5, cv=0
+    model,
+    train_loader,
+    valid_loader,
+    optimizer,
+    n_epochs,
+    device,
+    experiment,
+    data="simulation",
+    num=5,
+    cv=0,
 ):
     print("Training black-box model on ", data)
     train_loss_trend = []
@@ -384,15 +495,27 @@ def train_model_rt(
     loss_criterion = torch.nn.CrossEntropyLoss()
     for epoch in range(n_epochs):
         model.train()
-        recall_train, precision_train, auc_train, correct_label_train, epoch_loss, count = 0, 0, 0, 0, 0, 0
+        (
+            recall_train,
+            precision_train,
+            auc_train,
+            correct_label_train,
+            epoch_loss,
+            count,
+        ) = (0, 0, 0, 0, 0, 0)
         for i, (signals, labels) in enumerate(train_loader):
             # signals, labels = torch.Tensor(signals.float()).to(device), torch.Tensor(labels.float()).to(device)
             signals, labels = signals.to(device), labels.to(device)
             if "simulation" in data:
                 num = 20
-                time_points = [int(tt) for tt in np.linspace(1, signals.shape[-1] - 2, num=num)]
+                time_points = [
+                    int(tt) for tt in np.linspace(1, signals.shape[-1] - 2, num=num)
+                ]
             else:
-                time_points = [int(tt) for tt in np.logspace(1, np.log10(signals.shape[2] - 1), num=num)]
+                time_points = [
+                    int(tt)
+                    for tt in np.logspace(1, np.log10(signals.shape[2] - 1), num=num)
+                ]
             for t in time_points:
                 input_signal = signals[:, :, : t + 1]
                 label = labels[:, t]
@@ -408,7 +531,9 @@ def train_model_rt(
                 label_onehot.zero_()
                 label_onehot.scatter_(1, label.long().view(-1, 1), 1)
 
-                auc, recall, precision, correct, _ = evaluate_multiclass(label_onehot, pred_onehot, predictions)
+                auc, recall, precision, correct, _ = evaluate_multiclass(
+                    label_onehot, pred_onehot, predictions
+                )
                 correct_label_train += correct
                 auc_train += auc
                 recall_train += recall
@@ -421,9 +546,13 @@ def train_model_rt(
                 optimizer.step()
 
         test_num = num
-        test_loss, recall_test, precision_test, auc_test, correct_label_test = test_model_rt(
-            model, valid_loader, num=test_num
-        )
+        (
+            test_loss,
+            recall_test,
+            precision_test,
+            auc_test,
+            correct_label_test,
+        ) = test_model_rt(model, valid_loader, num=test_num)
 
         train_loss_trend.append(epoch_loss / ((i + 1) * num))
         test_loss_trend.append(test_loss)
@@ -433,25 +562,34 @@ def train_model_rt(
             print(
                 "Training ===>loss: ",
                 epoch_loss / ((i + 1) * num),
-                " Accuracy: %.2f percent" % (100 * correct_label_train / (len(train_loader.dataset) * num)),
+                " Accuracy: %.2f percent"
+                % (100 * correct_label_train / (len(train_loader.dataset) * num)),
                 " AUC: %.2f" % (auc_train / ((i + 1) * num)),
             )
             print(
                 "Test ===>loss: ",
                 test_loss,
-                " Accuracy: %.2f percent" % (100 * correct_label_test / (len(valid_loader.dataset) * test_num)),
+                " Accuracy: %.2f percent"
+                % (100 * correct_label_test / (len(valid_loader.dataset) * test_num)),
                 " AUC: %.2f" % (auc_test),
             )
 
-    test_loss, recall_test, precision_test, auc_test, correct_label_test = test_model_rt(
-        model, valid_loader, num=test_num
-    )
+    (
+        test_loss,
+        recall_test,
+        precision_test,
+        auc_test,
+        correct_label_test,
+    ) = test_model_rt(model, valid_loader, num=test_num)
     print("Test AUC: ", auc_test)
 
     # Save model and results
     if not os.path.exists(os.path.join("./experiments/results/", data)):
         os.mkdir(os.path.join("./experiments/results/", data))
-    torch.save(model.state_dict(), "./experiments/results/" + data + "/" + str(experiment) + "_" + str(cv) + ".pt")
+    torch.save(
+        model.state_dict(),
+        "./experiments/results/" + data + "/" + str(experiment) + "_" + str(cv) + ".pt",
+    )
     plt.plot(train_loss_trend, label="Train loss")
     plt.plot(test_loss_trend, label="Validation loss")
     plt.legend()
@@ -459,7 +597,16 @@ def train_model_rt(
 
 
 def train_model_rt_binary(
-    model, train_loader, valid_loader, optimizer, n_epochs, device, experiment, data="simulation", num=5, cv=0
+    model,
+    train_loader,
+    valid_loader,
+    optimizer,
+    n_epochs,
+    device,
+    experiment,
+    data="simulation",
+    num=5,
+    cv=0,
 ):
     train_loss_trend = []
     test_loss_trend = []
@@ -468,13 +615,27 @@ def train_model_rt_binary(
     loss_criterion = torch.nn.BCEWithLogitsLoss()
     for epoch in range(n_epochs):
         model.train()
-        recall_train, precision_train, auc_train, correct_label_train, epoch_loss, count = 0, 0, 0, 0, 0, 0
+        (
+            recall_train,
+            precision_train,
+            auc_train,
+            correct_label_train,
+            epoch_loss,
+            count,
+        ) = (0, 0, 0, 0, 0, 0)
         for i, (signals, labels) in enumerate(train_loader):
-            signals, labels = torch.Tensor(signals.float()).to(device), torch.Tensor(labels.float()).to(device)
+            signals, labels = torch.Tensor(signals.float()).to(device), torch.Tensor(
+                labels.float()
+            ).to(device)
             if data == "simulation":
-                time_points = [int(tt) for tt in np.linspace(1, signals.shape[2] - 2, num=num)]
+                time_points = [
+                    int(tt) for tt in np.linspace(1, signals.shape[2] - 2, num=num)
+                ]
             else:
-                time_points = [int(tt) for tt in np.logspace(0, np.log10(signals.shape[2] - 1), num=num)]
+                time_points = [
+                    int(tt)
+                    for tt in np.logspace(0, np.log10(signals.shape[2] - 1), num=num)
+                ]
 
             for t in time_points:
                 predictions_logits = model(signals[:, :, : t + 1])
@@ -492,15 +653,21 @@ def train_model_rt_binary(
                 precision_train += precision
                 count += 1
                 optimizer.zero_grad()
-                reconstruction_loss = loss_criterion(predictions_logits, labels[:, t].view(-1, 1).to(device))
+                reconstruction_loss = loss_criterion(
+                    predictions_logits, labels[:, t].view(-1, 1).to(device)
+                )
                 epoch_loss += reconstruction_loss.item()
                 reconstruction_loss.backward()
                 optimizer.step()
 
         test_num = num
-        test_loss, recall_test, precision_test, auc_test, correct_label_test = test_model_rt_binary(
-            model, valid_loader, num=test_num
-        )
+        (
+            test_loss,
+            recall_test,
+            precision_test,
+            auc_test,
+            correct_label_test,
+        ) = test_model_rt_binary(model, valid_loader, num=test_num)
 
         train_loss_trend.append(epoch_loss / ((i + 1) * num))
         test_loss_trend.append(test_loss)
@@ -510,30 +677,50 @@ def train_model_rt_binary(
             print(
                 "Training ===>loss: ",
                 epoch_loss / ((i + 1) * num),
-                " Accuracy: %.2f percent" % (100 * correct_label_train / (len(train_loader.dataset) * num)),
+                " Accuracy: %.2f percent"
+                % (100 * correct_label_train / (len(train_loader.dataset) * num)),
                 " AUC: %.2f" % (auc_train / ((i + 1) * num)),
             )
             print(
                 "Test ===>loss: ",
                 test_loss,
-                " Accuracy: %.2f percent" % (100 * correct_label_test / (len(valid_loader.dataset) * test_num)),
+                " Accuracy: %.2f percent"
+                % (100 * correct_label_test / (len(valid_loader.dataset) * test_num)),
                 " AUC: %.2f" % (auc_test),
             )
 
-    test_loss, recall_test, precision_test, auc_test, correct_label_test = test_model_rt_binary(model, valid_loader)
+    (
+        test_loss,
+        recall_test,
+        precision_test,
+        auc_test,
+        correct_label_test,
+    ) = test_model_rt_binary(model, valid_loader)
     print("Test loss: ", test_loss)
 
     # Save model and results
     if not os.path.exists(os.path.join("./ckpt/", data)):
         os.mkdir(os.path.join("./ckpt/", data))
-    torch.save(model.state_dict(), "./ckpt/" + data + "/" + str(experiment) + "_" + str(cv) + ".pt")
+    torch.save(
+        model.state_dict(),
+        "./ckpt/" + data + "/" + str(experiment) + "_" + str(cv) + ".pt",
+    )
     plt.plot(train_loss_trend, label="Train loss")
     plt.plot(test_loss_trend, label="Validation loss")
     plt.legend()
     plt.savefig(os.path.join("./plots", data, "train_loss.pdf"))
 
 
-def train_model_rt_rg(model, train_loader, valid_loader, optimizer, n_epochs, device, experiment, data="ghg"):
+def train_model_rt_rg(
+    model,
+    train_loader,
+    valid_loader,
+    optimizer,
+    n_epochs,
+    device,
+    experiment,
+    data="ghg",
+):
     print("training data: ", data)
     train_loss_trend = []
     test_loss_trend = []
@@ -547,12 +734,16 @@ def train_model_rt_rg(model, train_loader, valid_loader, optimizer, n_epochs, de
         epoch_loss = 0
         num = 20
         for i, (signals, labels) in enumerate(train_loader):
-            signals, labels = torch.Tensor(signals.float()).to(device), torch.Tensor(labels.float()).to(device)
+            signals, labels = torch.Tensor(signals.float()).to(device), torch.Tensor(
+                labels.float()
+            ).to(device)
             for t in [int(tt) for tt in np.linspace(0, signals.shape[2] - 1, num=num)]:
                 optimizer.zero_grad()
                 predictions = model(signals[:, :, : t + 1])
 
-                reconstruction_loss = loss_criterion(predictions, labels[:, t].to(device))
+                reconstruction_loss = loss_criterion(
+                    predictions, labels[:, t].to(device)
+                )
                 epoch_loss += reconstruction_loss.item()
                 reconstruction_loss.backward()
                 optimizer.step()
@@ -588,7 +779,9 @@ def test_model_rt(model, test_loader, num=1):
     count = 0
     test_loss = 0
     for i, (signals, labels) in enumerate(test_loader):
-        signals, labels = torch.Tensor(signals.float()).to(device), torch.Tensor(labels.float()).to(device)
+        signals, labels = torch.Tensor(signals.float()).to(device), torch.Tensor(
+            labels.float()
+        ).to(device)
         for t in [int(tt) for tt in np.linspace(0, signals.shape[2] - 2, num=num)]:
             label = labels[:, t].view(-1, 1)
             label_onehot = torch.FloatTensor(label.shape[0], 2).to(device)
@@ -607,7 +800,9 @@ def test_model_rt(model, test_loader, num=1):
             pred_onehot.scatter_(1, predicted_label.view(-1, 1), 1)
             label_onehot.zero_()
             label_onehot.scatter_(1, labels[:, t].long().view(-1, 1), 1)
-            auc, recall, precision, correct, _ = evaluate_multiclass(label_onehot, pred_onehot, predictions)
+            auc, recall, precision, correct, _ = evaluate_multiclass(
+                label_onehot, pred_onehot, predictions
+            )
             correct_label_test += correct
             auc_test += auc
             recall_test += recall
@@ -618,7 +813,13 @@ def test_model_rt(model, test_loader, num=1):
             test_loss += loss.item()
 
     test_loss = test_loss / ((i + 1) * num)
-    return test_loss, recall_test, precision_test, auc_test / ((i + 1) * num), correct_label_test
+    return (
+        test_loss,
+        recall_test,
+        precision_test,
+        auc_test / ((i + 1) * num),
+        correct_label_test,
+    )
 
 
 def test_model_rt_binary(model, test_loader, num=1):
@@ -630,7 +831,9 @@ def test_model_rt_binary(model, test_loader, num=1):
     count = 0
     test_loss = 0
     for i, (signals, labels) in enumerate(test_loader):
-        signals, labels = torch.Tensor(signals.float()).to(device), torch.Tensor(labels.float()).to(device)
+        signals, labels = torch.Tensor(signals.float()).to(device), torch.Tensor(
+            labels.float()
+        ).to(device)
         for t in [int(tt) for tt in np.linspace(0, signals.shape[2] - 2, num=num)]:
             # for t in [24]:
             prediction_logits = model(signals[:, :, : t + 1])
@@ -638,18 +841,28 @@ def test_model_rt_binary(model, test_loader, num=1):
             predicted_label = (prediction > 0.5).float()
             labels_th = labels[:, t].float()
             auc, recall, precision, correct = evaluate_binary(
-                labels_th.contiguous().view(-1), predicted_label.contiguous().view(-1), prediction.contiguous().view(-1)
+                labels_th.contiguous().view(-1),
+                predicted_label.contiguous().view(-1),
+                prediction.contiguous().view(-1),
             )
             correct_label_test += correct
             auc_test += auc
             recall_test += recall
             precision_test += precision
             count += 1
-            loss = torch.nn.BCEWithLogitsLoss()(prediction_logits, labels[:, t].view(-1, 1).to(device))
+            loss = torch.nn.BCEWithLogitsLoss()(
+                prediction_logits, labels[:, t].view(-1, 1).to(device)
+            )
             test_loss += loss.item()
 
     test_loss = test_loss / ((i + 1) * num)
-    return test_loss, recall_test, precision_test, auc_test / ((i + 1) * num), correct_label_test
+    return (
+        test_loss,
+        recall_test,
+        precision_test,
+        auc_test / ((i + 1) * num),
+        correct_label_test,
+    )
 
 
 def test_model_rt_rg(model, test_loader):
@@ -658,7 +871,9 @@ def test_model_rt_rg(model, test_loader):
     test_loss = 0
     num = 50
     for i, (signals, labels) in enumerate(test_loader):
-        signals, labels = torch.Tensor(signals.float()).to(device), torch.Tensor(labels.float()).to(device)
+        signals, labels = torch.Tensor(signals.float()).to(device), torch.Tensor(
+            labels.float()
+        ).to(device)
         for t in [int(tt) for tt in np.linspace(0, signals.shape[2] - 1, num=num)]:
             prediction = model(signals[:, :, : t + 1])
             loss = torch.nn.MSELoss()(prediction, labels[:, t].to(device))
@@ -668,7 +883,9 @@ def test_model_rt_rg(model, test_loader):
     return test_loss
 
 
-def test_model_multiclass(model, test_loader, num=5, loss_criterion=torch.nn.CrossEntropyLoss()):
+def test_model_multiclass(
+    model, test_loader, num=5, loss_criterion=torch.nn.CrossEntropyLoss()
+):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model.to(device)
     model.eval()
@@ -678,9 +895,13 @@ def test_model_multiclass(model, test_loader, num=5, loss_criterion=torch.nn.Cro
     test_loss = 0
     auc_class_list = []
     for i, (signals, labels) in enumerate(test_loader):
-        signals, labels = torch.Tensor(signals.float()).to(device), torch.Tensor(labels.float()).to(device)
+        signals, labels = torch.Tensor(signals.float()).to(device), torch.Tensor(
+            labels.float()
+        ).to(device)
         if num > 1:
-            time_points = [int(tt) for tt in np.linspace(20, signals.shape[-1] - 2, num=num)]
+            time_points = [
+                int(tt) for tt in np.linspace(20, signals.shape[-1] - 2, num=num)
+            ]
         else:
             time_points = [signals.shape[2] - 1]
         for t in time_points:
@@ -693,8 +914,10 @@ def test_model_multiclass(model, test_loader, num=5, loss_criterion=torch.nn.Cro
             predictions = model(signals)
 
             # print(loss_criterion)
-            if type(loss_criterion).__name__ == type(torch.nn.CrossEntropyLoss()).__name__:  # noqa: E721
-                pred_onehot = torch.FloatTensor(labels.shape[0], labels.shape[1]).to(device)
+            if isinstance(loss_criterion, torch.nn.CrossEntropyLoss):  # noqa: E721
+                pred_onehot = torch.FloatTensor(labels.shape[0], labels.shape[1]).to(
+                    device
+                )
                 _, predicted_label = predictions.max(1)
                 pred_onehot.zero_()
                 pred_onehot.scatter_(1, predicted_label.view(-1, 1), 1)
@@ -712,7 +935,7 @@ def test_model_multiclass(model, test_loader, num=5, loss_criterion=torch.nn.Cro
             recall_test += recall
             precision_test += precision
             count += 1
-            if type(loss_criterion).__name__ == type(torch.nn.CrossEntropyLoss()).__name__:  # noqa: E721
+            if isinstance(loss_criterion, torch.nn.CrossEntropyLoss):  # noqa: E721
                 _, targets = label.max(1)
                 targets = targets.long()
             else:
@@ -723,10 +946,18 @@ def test_model_multiclass(model, test_loader, num=5, loss_criterion=torch.nn.Cro
     test_loss = test_loss / ((i + 1) * num)
     auc_class_list = np.array(auc_class_list).sum(0)
     print("class auc:", auc_class_list / ((i + 1) * num))
-    return test_loss, recall_test, precision_test, auc_test / ((i + 1) * num), correct_label_test
+    return (
+        test_loss,
+        recall_test,
+        precision_test,
+        auc_test / ((i + 1) * num),
+        correct_label_test,
+    )
 
 
-def train_reconstruction(model, train_loader, valid_loader, n_epochs, device, experiment):
+def train_reconstruction(
+    model, train_loader, valid_loader, n_epochs, device, experiment
+):
     train_loss_trend = []
     test_loss_trend = []
     model.to(device)
@@ -740,12 +971,14 @@ def train_reconstruction(model, train_loader, valid_loader, n_epochs, device, ex
         epoch_loss = 0
         for i, (signals, labels) in enumerate(train_loader):
             optimizer.zero_grad()
-            signals, _ = torch.Tensor(signals.float()).to(device), torch.Tensor(labels.float()).to(device)
+            signals, _ = torch.Tensor(signals.float()).to(device), torch.Tensor(
+                labels.float()
+            ).to(device)
             mu, logvar, z = model.encode(signals)
             recon = model.decode(z)
-            loss = torch.nn.MSELoss()(recon, signals[:, :, -1].view(len(signals), -1)) - 0.5 * torch.sum(
-                1 + logvar - mu.pow(2) - logvar.exp()
-            )
+            loss = torch.nn.MSELoss()(
+                recon, signals[:, :, -1].view(len(signals), -1)
+            ) - 0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
             epoch_loss = +loss.item()
             loss.backward()
             optimizer.step()
@@ -772,12 +1005,14 @@ def test_reconstruction(model, valid_loader, device):
     model.eval()
     test_loss = 0
     for i, (signals, labels) in enumerate(valid_loader):
-        signals, _ = torch.Tensor(signals.float()).to(device), torch.Tensor(labels.float()).to(device)
+        signals, _ = torch.Tensor(signals.float()).to(device), torch.Tensor(
+            labels.float()
+        ).to(device)
         mu, logvar, z = model.encode(signals)
         recon = model.decode(z)
-        loss = torch.nn.MSELoss()(recon, signals[:, :, -1].view(len(signals), -1)) - 0.5 * torch.sum(
-            1 + logvar - mu.pow(2) - logvar.exp()
-        )
+        loss = torch.nn.MSELoss()(
+            recon, signals[:, :, -1].view(len(signals), -1)
+        ) - 0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
         test_loss = +loss.item()
     return test_loss
 
@@ -787,9 +1022,12 @@ def load_data(batch_size, path="./data/", **kwargs):
     task = kwargs["task"] if "task" in kwargs.keys() else "mortality"
     p_data = PatientData(path, task=task, shuffle=False, transform=transform)
     test_bs = kwargs["test_bs"] if "test_bs" in kwargs.keys() else None
-    train_pc = kwargs["train_pc"] if "train_pc" in kwargs.keys() else 1.0
 
-    features = kwargs["features"] if "features" in kwargs.keys() else range(p_data.train_data.shape[1])
+    features = (
+        kwargs["features"]
+        if "features" in kwargs.keys()
+        else range(p_data.train_data.shape[1])
+    )
     p_data.train_data = p_data.train_data[:, features, :]
     p_data.test_data = p_data.test_data[:, features, :]
 
@@ -801,28 +1039,36 @@ def load_data(batch_size, path="./data/", **kwargs):
             train_idx, valid_idx = list(kf.split(p_data.train_data))[kwargs["cv"]]
         else:
             sss = StratifiedShuffleSplit(n_splits=5, test_size=0.2, random_state=88)
-            train_idx, valid_idx = list(sss.split(p_data.train_data[:, :, -1], p_data.train_label[:, :, -1]))[
-                kwargs["cv"]
-            ]
+            train_idx, valid_idx = list(
+                sss.split(p_data.train_data[:, :, -1], p_data.train_label[:, :, -1])
+            )[kwargs["cv"]]
     else:
         if task == "mortality":
             train_idx = range(n_train)
             valid_idx = range(n_train, p_data.n_train)
         else:
             sss = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=88)
-            train_idx, valid_idx = list(sss.split(p_data.train_data[:, :, -1], p_data.train_label[:, :, -1]))[0]
+            train_idx, valid_idx = list(
+                sss.split(p_data.train_data[:, :, -1], p_data.train_label[:, :, -1])
+            )[0]
 
     train_dataset = utils.TensorDataset(
-        torch.Tensor(p_data.train_data[train_idx, :, :]), torch.Tensor(p_data.train_label[train_idx])
+        torch.Tensor(p_data.train_data[train_idx, :, :]),
+        torch.Tensor(p_data.train_label[train_idx]),
     )
 
     valid_dataset = utils.TensorDataset(
-        torch.Tensor(p_data.train_data[valid_idx, :, :]), torch.Tensor(p_data.train_label[valid_idx])
+        torch.Tensor(p_data.train_data[valid_idx, :, :]),
+        torch.Tensor(p_data.train_label[valid_idx]),
     )
-    test_dataset = utils.TensorDataset(torch.Tensor(p_data.test_data), torch.Tensor(p_data.test_label))
+    test_dataset = utils.TensorDataset(
+        torch.Tensor(p_data.test_data), torch.Tensor(p_data.test_label)
+    )
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size)
-    valid_loader = DataLoader(valid_dataset, batch_size=batch_size)  # p_data.n_train - int(0.8 * p_data.n_train))
+    valid_loader = DataLoader(
+        valid_dataset, batch_size=batch_size
+    )  # p_data.n_train - int(0.8 * p_data.n_train))
 
     if test_bs is not None:
         test_loader = DataLoader(test_dataset, batch_size=test_bs)
@@ -834,13 +1080,16 @@ def load_data(batch_size, path="./data/", **kwargs):
             "Train set: ",
             np.count_nonzero(p_data.train_label[0 : int(0.8 * p_data.n_train)]),
             "patient who died out of %d total" % (int(0.8 * p_data.n_train)),
-            "(Average missing in train: %.2f)" % (np.mean(p_data.train_missing[0 : int(0.8 * p_data.n_train)])),
+            "(Average missing in train: %.2f)"
+            % (np.mean(p_data.train_missing[0 : int(0.8 * p_data.n_train)])),
         )
         print(
             "Valid set: ",
             np.count_nonzero(p_data.train_label[int(0.8 * p_data.n_train) :]),
-            "patient who died out of %d total" % (len(p_data.train_label[int(0.8 * p_data.n_train) :])),
-            "(Average missing in validation: %.2f)" % (np.mean(p_data.train_missing[int(0.8 * p_data.n_train) :])),
+            "patient who died out of %d total"
+            % (len(p_data.train_label[int(0.8 * p_data.n_train) :])),
+            "(Average missing in validation: %.2f)"
+            % (np.mean(p_data.train_missing[int(0.8 * p_data.n_train) :])),
         )
         print(
             "Test set: ",
@@ -883,12 +1132,10 @@ def load_data(batch_size, path="./data/", **kwargs):
 #     return p_data, train_loader, valid_loader, test_loader
 
 
-def load_simulated_data(batch_size=100, datapath="./data/state", data_type="state", percentage=1.0, **kwargs):
+def load_simulated_data(
+    batch_size=100, datapath="./data/state", data_type="state", percentage=1.0, **kwargs
+):
     if data_type == "state":
-        with open(os.path.join(datapath, "state_dataset_importance_train.pkl"), "rb") as f:
-            importance_score_train = pkl.load(f)
-        with open(os.path.join(datapath, "state_dataset_importance_test.pkl"), "rb") as f:
-            importance_score_train_test = pkl.load(f)
         file_name = "state_dataset_"
     else:
         file_name = ""
@@ -901,7 +1148,11 @@ def load_simulated_data(batch_size=100, datapath="./data/state", data_type="stat
     with open(os.path.join(datapath, file_name + "y_test.pkl"), "rb") as f:
         y_test = pkl.load(f)
 
-    features = kwargs["features"] if "features" in kwargs.keys() else list(range(x_test.shape[1]))
+    features = (
+        kwargs["features"]
+        if "features" in kwargs.keys()
+        else list(range(x_test.shape[1]))
+    )
     test_bs = kwargs["test_bs"] if "test_bs" in kwargs.keys() else None
 
     perm = np.random.permutation(x_train.shape[0])
@@ -924,12 +1175,20 @@ def load_simulated_data(batch_size=100, datapath="./data/state", data_type="stat
         train_idx = range(n_train)
         valid_idx = range(n_train, len(x_train))
 
-    train_dataset = utils.TensorDataset(torch.Tensor(x_train[train_idx, :, :]), torch.Tensor(y_train[train_idx, :]))
-    valid_dataset = utils.TensorDataset(torch.Tensor(x_train[valid_idx, :, :]), torch.Tensor(y_train[valid_idx, :]))
+    train_dataset = utils.TensorDataset(
+        torch.Tensor(x_train[train_idx, :, :]), torch.Tensor(y_train[train_idx, :])
+    )
+    valid_dataset = utils.TensorDataset(
+        torch.Tensor(x_train[valid_idx, :, :]), torch.Tensor(y_train[valid_idx, :])
+    )
 
-    test_dataset = utils.TensorDataset(torch.Tensor(x_test[:, :, :]), torch.Tensor(y_test))
+    test_dataset = utils.TensorDataset(
+        torch.Tensor(x_test[:, :, :]), torch.Tensor(y_test)
+    )
     train_loader = DataLoader(train_dataset, batch_size=batch_size)
-    valid_loader = DataLoader(valid_dataset, batch_size=len(x_train) - int(0.8 * n_train))
+    valid_loader = DataLoader(
+        valid_dataset, batch_size=len(x_train) - int(0.8 * n_train)
+    )
     if test_bs is not None:
         test_loader = DataLoader(test_dataset, batch_size=test_bs)
     else:
@@ -951,7 +1210,11 @@ def top_risk_change(exp):
         exp.risk_predictor.eval()
         risk = []
         for t in range(1, 48):
-            risk.append(exp.risk_predictor(signal[:, 0:t].view(1, signal.shape[0], t).to(device)).item())
+            risk.append(
+                exp.risk_predictor(
+                    signal[:, 0:t].view(1, signal.shape[0], t).to(device)
+                ).item()
+            )
         span.append((i, max(risk) - min(risk)))
     span.sort(key=lambda pair: pair[1], reverse=True)
     print([x[0] for x in span[0:300]])
@@ -960,17 +1223,24 @@ def top_risk_change(exp):
 def test_cond(mean, covariance, sig_ind, x_ind):
     x_ind = x_ind.unsqueeze(-1)
     mean_1 = torch.cat((mean[:, :sig_ind], mean[:, sig_ind + 1 :]), 1).unsqueeze(-1)
-    cov_1_2 = torch.cat(([covariance[:, 0:sig_ind, sig_ind], covariance[:, sig_ind + 1 :, sig_ind]]), 1).unsqueeze(-1)
+    cov_1_2 = torch.cat(
+        ([covariance[:, 0:sig_ind, sig_ind], covariance[:, sig_ind + 1 :, sig_ind]]), 1
+    ).unsqueeze(-1)
     cov_2_2 = covariance[:, sig_ind, sig_ind]
-    cov_1_1 = torch.cat(([covariance[:, 0:sig_ind, :], covariance[:, sig_ind + 1 :, :]]), 1)
+    cov_1_1 = torch.cat(
+        ([covariance[:, 0:sig_ind, :], covariance[:, sig_ind + 1 :, :]]), 1
+    )
     cov_1_1 = torch.cat(([cov_1_1[:, :, 0:sig_ind], cov_1_1[:, :, sig_ind + 1 :]]), 2)
-    mean_cond = mean_1 + torch.bmm(cov_1_2, (x_ind - mean[:, sig_ind]).unsqueeze(-1)) / cov_2_2
-    covariance_cond = cov_1_1 - torch.bmm(cov_1_2, torch.transpose(cov_1_2, 2, 1)) / cov_2_2
+    mean_cond = (
+        mean_1 + torch.bmm(cov_1_2, (x_ind - mean[:, sig_ind]).unsqueeze(-1)) / cov_2_2
+    )
+    covariance_cond = (
+        cov_1_1 - torch.bmm(cov_1_2, torch.transpose(cov_1_2, 2, 1)) / cov_2_2
+    )
     return mean_cond, covariance_cond
 
 
 def shade_state_state_data(state_subj, t, ax, data="simulation"):
-    cmap = plt.get_cmap("tab10")
     # Shade the state on simulation data plots
     for ttt in range(t[0], len(t)):
         if state_subj[ttt] == 0:
@@ -982,13 +1252,16 @@ def shade_state_state_data(state_subj, t, ax, data="simulation"):
 
 
 def shade_state(gt_importance_subj, t, ax, data="simulation"):
-    cmap = plt.get_cmap("tab10")
     # Shade the state on simulation data plots
     if gt_importance_subj.shape[0] >= 3:
         gt_importance_subj = gt_importance_subj.transpose(1, 0)
 
     if not data == "simulation_spike":
-        prev_color = "g" if np.argmax(gt_importance_subj[:, 1]) < np.argmax(gt_importance_subj[:, 2]) else "y"
+        prev_color = (
+            "g"
+            if np.argmax(gt_importance_subj[:, 1]) < np.argmax(gt_importance_subj[:, 2])
+            else "y"
+        )
         print("######################", t[1])
         for ttt in range(t[1], t[-1]):
             # state = np.argmax(gt_importance_subj[ttt, :])
@@ -1027,7 +1300,9 @@ def plot_importance(
     # a[0] = 2./(1.+np.exp(-3*a[0])) - 1.
     if hasattr(patient_data, "test_intervention"):
         f_color = ["g", "b", "r", "c", "m", "y", "k"]
-        for int_ind, intervention in enumerate(patient_data.test_intervention[subject, :, :]):
+        for int_ind, intervention in enumerate(
+            patient_data.test_intervention[subject, :, :]
+        ):
             if sum(intervention) != 0:
                 switch_point = []
                 intervention = intervention[1:]
@@ -1074,7 +1349,9 @@ def plot_importance(
                     t,
                     a[ax_ind][ind, :],
                     yerr=a_std[ax_ind][ind, :],
-                    marker=markers[list(important_signals).index(ref_ind) % len(markers)],
+                    marker=markers[
+                        list(important_signals).index(ref_ind) % len(markers)
+                    ],
                     linewidth=3,
                     elinewidth=1,
                     markersize=9,
@@ -1097,18 +1374,32 @@ def plot_importance(
     for i, ref_ind in enumerate(important_signals):
         c = color_map[ref_ind]
         if data == "mimic":
-            axs[0].plot(np.array(signals[ref_ind, 1:]) / max_plot, linewidth=3, color=c, label="%s" % (fmap[ref_ind]))
+            axs[0].plot(
+                np.array(signals[ref_ind, 1:]) / max_plot,
+                linewidth=3,
+                color=c,
+                label="%s" % (fmap[ref_ind]),
+            )
         else:
-            axs[0].plot(np.array(signals[ref_ind, 1:]), linewidth=3, color=c, label="%s" % (fmap[ref_ind]))
+            axs[0].plot(
+                np.array(signals[ref_ind, 1:]),
+                linewidth=3,
+                color=c,
+                label="%s" % (fmap[ref_ind]),
+            )
     axs[0].tick_params(axis="both", labelsize=36)
     axs[0].grid()
 
     axs[0].plot(np.array(label), "--", linewidth=6, label="Risk score", c="black")
-    axs[0].set_title("Time series signals and Model's predicted risk", fontweight="bold", fontsize=40)
+    axs[0].set_title(
+        "Time series signals and Model's predicted risk", fontweight="bold", fontsize=40
+    )
     axs[1].set_title("Feature importance FIT", fontweight="bold", fontsize=40)
     axs[2].set_title("Feature importance AFO", fontweight="bold", fontsize=40)
     axs[3].set_title("Feature importance FO", fontweight="bold", fontsize=40)
-    axs[4].set_title("Feature importance Sensitivity analysis", fontweight="bold", fontsize=40)
+    axs[4].set_title(
+        "Feature importance Sensitivity analysis", fontweight="bold", fontsize=40
+    )
     axs[5].set_title("Feature importance Attention", fontweight="bold", fontsize=40)
     axs[5].set_xlabel("time", fontweight="bold", fontsize=32)
     axs[0].set_ylabel("signal value", fontweight="bold", fontsize=32)
@@ -1116,26 +1407,46 @@ def plot_importance(
     f.set_figheight(40)
     f.set_figwidth(60)
     plt.subplots_adjust(hspace=0.5)
-    plt.savefig(os.path.join(save_path, "feature_%d.pdf" % (subject)), dpi=300, orientation="landscape")
+    plt.savefig(
+        os.path.join(save_path, "feature_%d.pdf" % (subject)),
+        dpi=300,
+        orientation="landscape",
+    )
     fig_legend = plt.figure(figsize=(13, 1.2))
     handles, labels = axs[0].get_legend_handles_labels()
-    plt.figlegend(handles, labels, loc="upper left", ncol=4, fancybox=True, handlelength=6, fontsize="xx-large")
-    fig_legend.savefig(os.path.join(save_path, "legend_%d.pdf" % subject), dpi=300, bbox_inches="tight")
+    plt.figlegend(
+        handles,
+        labels,
+        loc="upper left",
+        ncol=4,
+        fancybox=True,
+        handlelength=6,
+        fontsize="xx-large",
+    )
+    fig_legend.savefig(
+        os.path.join(save_path, "legend_%d.pdf" % subject), dpi=300, bbox_inches="tight"
+    )
 
     for imp_plot_ind in range(4):
         heatmap_fig = plt.figure(figsize=(15, 1) if data == "simulation" else (16, 9))
         plt.yticks(rotation=0)
-        imp_plot = sns.heatmap(
+        sns.heatmap(
             a[imp_plot_ind], yticklabels=fmap, square=True if data == "mimic" else False
         )  # , vmin=0, vmax=1)
         heatmap_fig.savefig(
-            os.path.join(save_path, "heatmap_%s_%s.pdf" % (str(subject), ["FIT", "AFO", "FO", "Sens"][imp_plot_ind]))
+            os.path.join(
+                save_path,
+                "heatmap_%s_%s.pdf"
+                % (str(subject), ["FIT", "AFO", "FO", "Sens"][imp_plot_ind]),
+            )
         )
     if data == "simulation":
         heatmap_gt = plt.figure(figsize=(20, 1))
         plt.yticks(rotation=0)
-        imp_plot = sns.heatmap(gt_importance_subj, yticklabels=fmap)
-        heatmap_gt.savefig(os.path.join(save_path, "heatmap_%s_ground_truth.pdf" % str(subject)))
+        sns.heatmap(gt_importance_subj, yticklabels=fmap)
+        heatmap_gt.savefig(
+            os.path.join(save_path, "heatmap_%s_ground_truth.pdf" % str(subject))
+        )
 
     return important_signals
 
@@ -1157,330 +1468,6 @@ class AverageMeter(object):
         self.sum += val * n
         self.count += n
         self.avg = self.sum / self.count
-
-
-# def replace_and_predict(
-#     self, signals_to_analyze, sensitivity_analysis_importance, n_important_features=3, data="ghg", tvec=None
-# ):
-#     mse_vec = []
-#     mse_vec_occ = []
-#     mse_vec_su = []
-#     mse_vec_comb = []
-#     mse_vec_sens = []
-#     nt = len(tvec)
-
-#     testset = list(self.test_loader.dataset)
-#     for sub_ind, subject in enumerate(signals_to_analyze):  # range(30):
-#         signals, label_o = testset[subject]
-#         label_o_o = label_o[-1]
-#         risk = []
-
-#         for ttt in range(1, signals.shape[1]):
-#             risk.append(self.risk_predictor(signals[:, 0:ttt].view(1, signals.shape[0], ttt).to(self.device)).item())
-
-#         importance = np.zeros((self.feature_size, nt))
-#         mean_predicted_risk = np.zeros((self.feature_size, nt))
-#         std_predicted_risk = np.zeros((self.feature_size, nt))
-#         importance_occ = np.zeros((self.feature_size, nt))
-#         mean_predicted_risk_occ = np.zeros((self.feature_size, nt))
-#         std_predicted_risk_occ = np.zeros((self.feature_size, nt))
-#         importance_comb = np.zeros((self.feature_size, nt))
-#         mean_predicted_risk_comb = np.zeros((self.feature_size, nt))
-#         std_predicted_risk_comb = np.zeros((self.feature_size, nt))
-#         importance_su = np.zeros((self.feature_size, nt))
-#         mean_predicted_risk_su = np.zeros((self.feature_size, nt))
-#         std_predicted_risk_su = np.zeros((self.feature_size, nt))
-#         importance_sens = np.zeros((self.feature_size, nt))
-#         mean_predicted_risk_sens = np.zeros((self.feature_size, nt))
-#         std_predicted_risk_sens = np.zeros((self.feature_size, nt))
-
-#         f_imp = np.zeros(self.feature_size)
-#         f_imp_occ = np.zeros(self.feature_size)
-#         f_imp_comb = np.zeros(self.feature_size)
-#         f_imp_su = np.zeros(self.feature_size)
-#         f_imp_sens = np.zeros(self.feature_size)
-#         max_imp_total = []
-#         max_imp_total_occ = []
-#         max_imp_total_comb = []
-#         max_imp_total_su = []
-#         max_imp_total_sens = []
-#         legend_elements = []
-
-#         # ckpt_path='./ckpt_pathckpt/' + data + '/'
-#         for i, sig_ind in enumerate(range(0, self.feature_size)):
-#             print("loading feature from:", self.ckpt_path)
-#             if not self.generator_type == "carry_forward_generator":
-#                 if "joint" in self.generator_type:
-#                     self.generator.load_state_dict(
-#                         torch.load(os.path.join(self.ckpt_path, "%s.pt" % self.generator_type))
-#                     )
-#                 else:
-#                     if self.historical:
-#                         self.generator.load_state_dict(
-#                             torch.load(os.path.join(self.ckpt_path, "%d_%s.pt" % (sig_ind, self.generator_type)))
-#                         )
-#                     else:
-#                         self.generator.load_state_dict(
-#                             torch.load(os.path.join(self.ckpt_path, "%d_%s_nohist.pt" % (sig_ind, self.generator_type)))
-#                         )
-
-#             label, importance[i, :], mean_predicted_risk[i, :], std_predicted_risk[i, :] = self._get_feature_importance(
-#                 signals, sig_ind=sig_ind, n_samples=10, mode="generator", tvec=tvec
-#             )
-#             (
-#                 _,
-#                 importance_occ[i, :],
-#                 mean_predicted_risk_occ[i, :],
-#                 std_predicted_risk_occ[i, :],
-#             ) = self._get_feature_importance(
-#                 signals, sig_ind=sig_ind, n_samples=10, mode="feature_occlusion", tvec=tvec
-#             )
-#             (
-#                 _,
-#                 importance_su[i, :],
-#                 mean_predicted_risk_su[i, :],
-#                 std_predicted_risk_su[i, :],
-#             ) = self._get_feature_importance(
-#                 signals, sig_ind=sig_ind, n_samples=10, mode="augmented_feature_occlusion", tvec=tvec
-#             )
-#             (
-#                 _,
-#                 importance_comb[i, :],
-#                 mean_predicted_risk_comb[i, :],
-#                 std_predicted_risk_comb[i, :],
-#             ) = self._get_feature_importance(
-#                 signals, sig_ind=sig_ind, n_samples=10, mode="combined", learned_risk=self.learned_risk, tvec=tvec
-#             )
-#             # print('importance:', importance[i,:])
-#             max_imp_total.append((i, max(mean_predicted_risk[i, :])))
-#             max_imp_total_occ.append((i, max(mean_predicted_risk_occ[i, :])))
-#             max_imp_total_su.append((i, max(mean_predicted_risk_su[i, :])))
-#             max_imp_total_sens.append((i, max(sensitivity_analysis_importance[sub_ind, i, :])))
-#             # print(label)
-#         label_scaled = self.patient_data.scaler_y.inverse_transform(np.reshape(np.array(label), [-1, 1]))
-#         label_scaled = np.reshape(label_scaled, [1, -1])
-#         label_scaled = label
-#         max_imp = np.argmax(importance, axis=0)
-#         for im in max_imp:
-#             f_imp[im] += 1
-
-#         max_imp_occ = np.argmax(importance_occ, axis=0)
-#         for im in max_imp_occ:
-#             f_imp_occ[im] += 1
-
-#         ## Pick the most influential signals and plot their importance over time
-#         max_imp_total.sort(key=lambda pair: pair[1], reverse=True)
-#         max_imp_total_occ.sort(key=lambda pair: pair[1], reverse=True)
-#         max_imp_total_comb.sort(key=lambda pair: pair[1], reverse=True)
-#         max_imp_total_su.sort(key=lambda pair: pair[1], reverse=True)
-#         max_imp_total_sens.sort(key=lambda pair: pair[1], reverse=True)
-
-#         n_feats_to_plot = min(self.feature_size, n_important_features)
-#         ms = 4
-#         lw = 3
-#         mec = "k"
-
-#         top_3_vec = []
-#         for ind, sig in max_imp_total[0:n_feats_to_plot]:
-#             if ind == 0:
-#                 signal_removed = torch.cat(
-#                     (signals[max_imp_total[-1][0], :].view(1, signals.shape[1]), signals[ind + 1 :, :]), 0
-#                 )
-#             elif ind == signals.shape[0]:
-#                 signal_removed = torch.cat((signals[:ind, :], signals[max_imp_total[-1][0], :]), 0)
-#             else:
-#                 signal_removed = torch.cat(
-#                     (
-#                         signals[:ind, :],
-#                         signals[max_imp_total[-1][0], :].view(1, signals.shape[1]),
-#                         signals[ind + 1 :, :],
-#                     ),
-#                     0,
-#                 )
-
-#         risk = self.risk_predictor(signals.view(1, signals.shape[0], signals.shape[1])).item()
-#         risk_removed = self.risk_predictor(signal_removed.view(1, signals.shape[0], signals.shape[1])).item()
-#         top_3_vec.append(risk - risk_removed)
-#         mse_vec.append(top_3_vec)
-
-#         top_3_vec_occ = []
-#         for ind, sig in max_imp_total_occ[0:n_feats_to_plot]:
-#             if ind == 0:
-#                 signal_removed = torch.cat(
-#                     (signals[max_imp_total[-1][0], :].view(1, signals.shape[1]), signals[ind + 1 :, :]), 0
-#                 )
-#             elif ind == signals.shape[0]:
-#                 signal_removed = torch.cat(
-#                     (signals[:ind, :], signals[max_imp_total[-1][0].view(1, signals.shape[1]), :]), 0
-#                 )
-#             else:
-#                 signal_removed = torch.cat(
-#                     (
-#                         signals[:ind, :],
-#                         signals[max_imp_total[-1][0], :].view(1, signals.shape[1]),
-#                         signals[ind + 1 :, :],
-#                     ),
-#                     0,
-#                 )
-
-#         risk = self.risk_predictor(signals.view(1, signals.shape[0], signals.shape[1])).item()
-#         risk_removed = self.risk_predictor(signal_removed.view(1, signals.shape[0], signals.shape[1])).item()
-#         top_3_vec_occ.append(risk - risk_removed)
-#         mse_vec_occ.append(top_3_vec_occ)
-
-#         top_3_vec_su = []
-#         for ind, sig in max_imp_total_su[0:n_feats_to_plot]:
-#             if ind == 0:
-#                 signal_removed = torch.cat(
-#                     (signals[max_imp_total[-1][0], :].view(1, signals.shape[1]), signals[ind + 1 :, :]), 0
-#                 )
-#             elif ind == signals.shape[0]:
-#                 signal_removed = torch.cat(
-#                     (signals[:ind, :], signals[max_imp_total[-1][0], :].view(1, signals.shape[1])), 0
-#                 )
-#             else:
-#                 signal_removed = torch.cat(
-#                     (
-#                         signals[:ind, :],
-#                         signals[max_imp_total[-1][0], :].view(1, signals.shape[1]),
-#                         signals[ind + 1 :, :],
-#                     ),
-#                     0,
-#                 )
-
-#         risk = self.risk_predictor(signals.view(1, signals.shape[0], signals.shape[1])).item()
-#         risk_removed = self.risk_predictor(signal_removed.view(1, signals.shape[0], signals.shape[1])).item()
-#         top_3_vec_su.append(risk - risk_removed)
-#         mse_vec_su.append(top_3_vec_su)
-
-#         top_3_vec_sens = []
-#         for ind, sig in max_imp_total_sens[0:n_feats_to_plot]:
-#             if ind == 0:
-#                 signal_removed = torch.cat(
-#                     (signals[max_imp_total[-1][0], :].view(1, signals.shape[1]), signals[ind + 1 :, :]), 0
-#                 )
-#             elif ind == signals.shape[0]:
-#                 signal_removed = torch.cat(
-#                     (signals[:ind, :], signals[max_imp_total[-1][0], :].view(1, signals.shape[1])), 0
-#                 )
-#             else:
-#                 signal_removed = torch.cat(
-#                     (
-#                         signals[:ind, :],
-#                         signals[max_imp_total[-1][0], :].view(1, signals.shape[1]),
-#                         signals[ind + 1 :, :],
-#                     ),
-#                     0,
-#                 )
-
-#         risk = self.risk_predictor(signals.view(1, signals.shape[0], signals.shape[1])).item()
-#         risk_removed = self.risk_predictor(signal_removed.view(1, signals.shape[0], signals.shape[1])).item()
-#         top_3_vec_sens.append(risk - risk_removed)
-#         mse_vec_sens.append(top_3_vec_sens)
-
-#         fig, ax_list = plt.subplots(nrows=3, ncols=len(tvec))
-#         fig, ax_list = plt.subplots(1, len(tvec), figsize=(8, 2))
-#         map_img = mpimg.imread("./results/ghc_figure.png")
-#         max_to_plot = 2
-#         colorvec = plt.get_cmap("Oranges")(np.linspace(1, 2 / 3, max_to_plot))
-#         k_count = 0
-#         for ind, sig in max_imp_total[0:max_to_plot]:
-#             for t_num, t_val in enumerate(tvec):
-#                 ax_list[t_num].imshow(map_img, extent=[0, width, 0, height])
-#                 ax_list[t_num].scatter(
-#                     x=[scatter_map_ghg[str(ind + 1)][0]],
-#                     y=[scatter_map_ghg[str(ind + 1)][1]],
-#                     c=["w"],
-#                     s=18,
-#                     marker="s",
-#                     edgecolor="r",
-#                     linewidth=2,
-#                 )
-#         if k_count == 0:
-#             ax_list[t_num].set_title("day %d" % (int(t_val / 4)))
-#         k_count += 1
-#         plt.tight_layout(pad=5.0)
-#         plt.savefig("./ghg/feature_imp_ghg_%d.pdf" % (USER, subject), dpi=300, orientation="landscape")
-
-#         fig, ax_list = plt.subplots(1, len(tvec), figsize=(8, 2))
-#         k_count = 0
-#         for ind, sig in max_imp_total_occ[0:max_to_plot]:
-#             for t_num, t_val in enumerate(tvec):
-#                 ax_list[t_num].imshow(map_img, extent=[0, width, 0, height])
-#                 ax_list[t_num].scatter(
-#                     x=[scatter_map_ghg[str(ind + 1)][0]],
-#                     y=[scatter_map_ghg[str(ind + 1)][1]],
-#                     c=["w"],
-#                     s=18,
-#                     marker="s",
-#                     edgecolor="r",
-#                     linewidth=2,
-#                 )
-#         if k_count == 0:
-#             ax_list[t_num].set_title("day %d" % (t_val / 4))
-#         k_count += 1
-
-#         plt.tight_layout(pad=5.0)
-#         plt.savefig("./ghg/feature_occ_ghg_%d.pdf" % (USER, subject), dpi=300, orientation="landscape")
-
-#         fig, ax_list = plt.subplots(1, len(tvec), figsize=(8, 2))
-#         k_count = 0
-#         for ind, sig in max_imp_total_comb[0:max_to_plot]:
-#             for t_num, t_val in enumerate(tvec):
-#                 ax_list[t_num].imshow(map_img, extent=[0, width, 0, height])
-#                 ax_list[t_num].scatter(
-#                     x=[scatter_map_ghg[str(ind + 1)][0]],
-#                     y=[scatter_map_ghg[str(ind + 1)][1]],
-#                     c=["w"],
-#                     s=18,
-#                     marker="s",
-#                     edgecolor="r",
-#                     linewidth=2,
-#                 )
-
-#         if k_count == 0:
-#             ax_list[t_num].set_title("day %d" % (t_val / 4))
-
-#         k_count += 1
-
-#         plt.tight_layout(pad=5.0)
-#         plt.savefig("./ghg/feature_imp_comb_ghg_%d.pdf" % (USER, subject), dpi=300, orientation="landscape")
-
-#         with open("./results/ghg_mse.pkl", "wb") as f:
-#             pkl.dump({"FFC": mse_vec, "FO": mse_vec_occ, "Su": mse_vec_su, "Sens": mse_vec_sens}, f)
-#         print(np.shape(np.array(mse_vec)))
-#         print(
-#             "FFC: 1:",
-#             np.mean(abs(np.array(mse_vec)[:, 0])),
-#             "2nd:",
-#             np.mean(abs(np.array(mse_vec)[:, 1])),
-#             "3rd:",
-#             np.mean(abs(np.array(mse_vec)[:, 2])),
-#         )
-#         print(
-#             "FO: 1:",
-#             np.mean(abs(np.array(mse_vec_occ)[:, 0])),
-#             "2nd:",
-#             np.mean(abs(np.array(mse_vec_occ)[:, 1])),
-#             "3rd:",
-#             np.mean(abs(np.array(mse_vec_occ)[:, 2])),
-#         )
-#         print(
-#             "AFO: 1:",
-#             np.mean(abs(np.array(mse_vec_su)[:, 0])),
-#             "2nd:",
-#             np.mean(abs(np.array(mse_vec_su)[:, 1])),
-#             "3rd:",
-#             np.mean(abs(np.array(mse_vec_su)[:, 2])),
-#         )
-#         print(
-#             "Sens: 1:",
-#             np.mean(abs(np.array(mse_vec_sens)[:, 0])),
-#             "2nd:",
-#             np.mean(abs(np.array(mse_vec_sens)[:, 1])),
-#             "3rd:",
-#             np.mean(abs(np.array(mse_vec_sens)[:, 2])),
-#         )
 
 
 def compute_median_rank(ranked_feats, ground_truth, soft=False, K=4, tau=0.2):
@@ -1506,7 +1493,7 @@ def compute_median_rank(ranked_feats, ground_truth, soft=False, K=4, tau=0.2):
 
 def plot_heatmap_text(ranked_scores, scores, filepath, ax):
     # assumes same shape of ranked scores and scores
-    heatmap = ax.pcolormesh(-ranked_scores, cmap=matplotlib.cm.Greens)
+    ax.pcolormesh(-ranked_scores, cmap=matplotlib.cm.Greens)
     for y in range(ranked_scores.shape[0]):
         for x in range(ranked_scores.shape[1]):
             ax.text(

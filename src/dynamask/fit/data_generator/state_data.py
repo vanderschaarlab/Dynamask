@@ -8,10 +8,16 @@ SIG_NUM = 3
 STATE_NUM = 1
 P_S0 = [0.5]
 
-correlated_feature = [0, 0]  # Features that re correlated with the important feature in each state
+correlated_feature = [
+    0,
+    0,
+]  # Features that re correlated with the important feature in each state
 
 imp_feature = [1, 2]  # Feature that is always set as important
-scale = [[0.1, 1.6, 0.5], [-0.1, -0.4, -1.5]]  # Scaling factor for distribution mean in each state
+scale = [
+    [0.1, 1.6, 0.5],
+    [-0.1, -0.4, -1.5],
+]  # Scaling factor for distribution mean in each state
 trans_mat = np.array([[0.1, 0.9], [0.1, 0.9]])
 # print(trans_mat.shape)
 
@@ -130,27 +136,52 @@ def logit(x):
 
 
 def normalize(train_data, test_data, config="mean_normalized"):
-    """ Calculate the mean and std of each feature from the training set
-    """
+    """Calculate the mean and std of each feature from the training set"""
     feature_size = train_data.shape[1]
     len_of_stay = train_data.shape[2]
     d = [x.T for x in train_data]
     d = np.stack(d, axis=0)
     if config == "mean_normalized":
-        feature_means = np.tile(np.mean(d.reshape(-1, feature_size), axis=0), (len_of_stay, 1)).T
-        feature_std = np.tile(np.std(d.reshape(-1, feature_size), axis=0), (len_of_stay, 1)).T
+        feature_means = np.tile(
+            np.mean(d.reshape(-1, feature_size), axis=0), (len_of_stay, 1)
+        ).T
+        feature_std = np.tile(
+            np.std(d.reshape(-1, feature_size), axis=0), (len_of_stay, 1)
+        ).T
         np.seterr(divide="ignore", invalid="ignore")
         train_data_n = np.array(
-            [np.where(feature_std == 0, (x - feature_means), (x - feature_means) / feature_std) for x in train_data]
+            [
+                np.where(
+                    feature_std == 0,
+                    (x - feature_means),
+                    (x - feature_means) / feature_std,
+                )
+                for x in train_data
+            ]
         )
         test_data_n = np.array(
-            [np.where(feature_std == 0, (x - feature_means), (x - feature_means) / feature_std) for x in test_data]
+            [
+                np.where(
+                    feature_std == 0,
+                    (x - feature_means),
+                    (x - feature_means) / feature_std,
+                )
+                for x in test_data
+            ]
         )
     elif config == "zero_to_one":
-        feature_max = np.tile(np.max(d.reshape(-1, feature_size), axis=0), (len_of_stay, 1)).T
-        feature_min = np.tile(np.min(d.reshape(-1, feature_size), axis=0), (len_of_stay, 1)).T
-        train_data_n = np.array([(x - feature_min) / (feature_max - feature_min) for x in train_data])
-        test_data_n = np.array([(x - feature_min) / (feature_max - feature_min) for x in test_data])
+        feature_max = np.tile(
+            np.max(d.reshape(-1, feature_size), axis=0), (len_of_stay, 1)
+        ).T
+        feature_min = np.tile(
+            np.min(d.reshape(-1, feature_size), axis=0), (len_of_stay, 1)
+        ).T
+        train_data_n = np.array(
+            [(x - feature_min) / (feature_max - feature_min) for x in train_data]
+        )
+        test_data_n = np.array(
+            [(x - feature_min) / (feature_max - feature_min) for x in test_data]
+        )
     return train_data_n, test_data_n
 
 
@@ -212,8 +243,12 @@ if __name__ == "__main__":
     if not os.path.exists("./data"):
         os.mkdir("./data")
     parser = argparse.ArgumentParser()
-    parser.add_argument("--signal_len", type=int, default=100, help="Length of the signal to generate")
-    parser.add_argument("--signal_num", type=int, default=1000, help="Number of the signals to generate")
+    parser.add_argument(
+        "--signal_len", type=int, default=100, help="Length of the signal to generate"
+    )
+    parser.add_argument(
+        "--signal_num", type=int, default=1000, help="Number of the signals to generate"
+    )
     parser.add_argument("--plot", action="store_true")
     args = parser.parse_args()
 
