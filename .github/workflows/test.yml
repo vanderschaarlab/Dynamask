@@ -46,6 +46,8 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install MacOS dependencies
         run: |
+            export LDFLAGS=-L/usr/local/opt/openssl/lib
+            export CPPFLAGS=-I/usr/local/opt/openssl/include
             brew install openssl postgresql
         if: ${{ matrix.os == 'macos-latest' }}
       - name: Install Ubuntu dependencies
